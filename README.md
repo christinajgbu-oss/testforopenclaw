@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# testforopenclaw
 
-## Getting Started
+一个演示 Next.js 和防抖函数的示例项目。
 
-First, run the development server:
+## 功能
+
+- 展示 `debounce` 防抖函数的使用方法
+- 输入框防抖示例
+- 按钮防抖示例
+
+## 安装
+
+```bash
+npm install
+```
+
+## 运行
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+然后访问 http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 使用 debounce
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 基本用法
 
-## Learn More
+```javascript
+import debounce from './utils/debounce';
 
-To learn more about Next.js, take a look at the following resources:
+const handleSearch = debounce((query) => {
+  console.log('搜索:', query);
+}, 500);
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 选项
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```javascript
+// 首次立即执行
+const handler = debounce(fn, 1000, { leading: true });
 
-## Deploy on Vercel
+// 停止后执行
+const handler = debounce(fn, 1000, { trailing: true });
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+// 两者都启用
+const handler = debounce(fn, 1000, { leading: true, trailing: true });
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 方法
+
+- `cancel()` - 取消待执行的函数
+- `flush()` - 立即执行
+- `pending()` - 检查是否有待执行的函数
+
+```javascript
+const handler = debounce(fn, 1000);
+
+handler.cancel();   // 取消
+handler.flush();   // 立即执行
+handler.pending(); // 检查状态
+```
+
+## 部署
+
+本项目已关联 GitHub，可以通过 Vercel 部署：
+
+1. 访问 https://vercel.com
+2. 导入 GitHub 仓库
+3. 自动部署
+
+## 技术栈
+
+- Next.js 16
+- React
+- TypeScript
