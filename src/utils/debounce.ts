@@ -50,7 +50,7 @@ function debounce<T extends AnyFunction>(
     lastArgs = null;
   }
 
-  const debounced = (...args: Parameters<T>) => {
+  const debounced = ((...args: Parameters<T>) => {
     lastArgs = args;
     const shouldCallNow = leading && timerId === null;
 
@@ -59,7 +59,7 @@ function debounce<T extends AnyFunction>(
 
     if (shouldCallNow) return invoke();
     return lastResult;
-  } as Debounced<T>;
+  }) as Debounced<T>;
 
   debounced.cancel = () => {
     if (timerId !== null) clearTimeout(timerId);
