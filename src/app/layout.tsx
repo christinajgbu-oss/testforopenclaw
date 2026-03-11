@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "testforopenclaw - Debounce Demo",
-  description: "A demo project for debounce function with Next.js",
+  title: "testforopenclaw - Snake Game",
+  description: "A snake game built with React and Next.js",
 };
 
 export default function RootLayout({

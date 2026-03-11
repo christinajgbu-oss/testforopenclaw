@@ -10,7 +10,9 @@
  * @param {boolean} options.trailing 是否在停止触发后再执行一次，默认 true
  * @returns {Function} 返回带有 cancel / flush / pending 方法的防抖函数
  */
-type Debounced<T extends (...args: any[]) => any> = ((
+type AnyFunction = (...args: unknown[]) => unknown;
+
+type Debounced<T extends AnyFunction> = ((
   ...args: Parameters<T>
 ) => ReturnType<T> | undefined) & {
   cancel: () => void;
@@ -18,7 +20,7 @@ type Debounced<T extends (...args: any[]) => any> = ((
   pending: () => boolean;
 };
 
-function debounce<T extends (...args: any[]) => any>(
+function debounce<T extends AnyFunction>(
   fn: T,
   wait = 300,
   options: { leading?: boolean; trailing?: boolean } = {}
@@ -28,15 +30,17 @@ function debounce<T extends (...args: any[]) => any>(
 
   let timerId: ReturnType<typeof setTimeout> | null = null;
   let lastArgs: Parameters<T> | null = null;
-  let lastThis: ThisParameterType<T> | undefined;
   let lastResult: ReturnType<T> | undefined;
 
   function invoke() {
-    const args = lastArgs as Parameters<T>;
-    const result = fn.apply(lastThis, args);
+    if (!lastArgs) {
+      return lastResult;
+    }
+
+    const args = lastArgs;
+    const result = fn(...args) as ReturnType<T>;
     lastResult = result;
     lastArgs = null;
-    lastThis = undefined;
     return result;
   }
 
@@ -44,12 +48,10 @@ function debounce<T extends (...args: any[]) => any>(
     timerId = null;
     if (trailing && lastArgs) return invoke();
     lastArgs = null;
-    lastThis = undefined;
   }
 
-  const debounced = function (this: ThisParameterType<T>, ...args: Parameters<T>) {
+  const debounced = (...args: Parameters<T>) => {
     lastArgs = args;
-    lastThis = this;
     const shouldCallNow = leading && timerId === null;
 
     if (timerId !== null) clearTimeout(timerId);
@@ -63,7 +65,6 @@ function debounce<T extends (...args: any[]) => any>(
     if (timerId !== null) clearTimeout(timerId);
     timerId = null;
     lastArgs = null;
-    lastThis = undefined;
   };
 
   debounced.flush = () => {
