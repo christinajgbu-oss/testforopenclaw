@@ -10,17 +10,21 @@
  * @param {boolean} options.trailing 是否在停止触发后再执行一次，默认 true
  * @returns {Function} 返回带有 cancel / flush / pending 方法的防抖函数
  */
-function debounce(fn, wait = 300, options = {}) {
+function debounce<T extends (...args: unknown[]) => unknown>(
+  fn: T,
+  wait = 300,
+  options: { leading?: boolean; trailing?: boolean } = {}
+): T & { cancel: () => void; flush: () => unknown; pending: () => boolean } {
   const leading = !!options.leading;
   const trailing = options.trailing !== false;
 
-  let timerId = null;
-  let lastArgs = null;
-  let lastThis = null;
-  let lastResult;
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: unknown[] | null = null;
+  let lastThis: unknown = null;
+  let lastResult: unknown;
 
   function invoke() {
-    const result = fn.apply(lastThis, lastArgs);
+    const result = fn.apply(lastThis, lastArgs as Parameters<T>);
     lastResult = result;
     lastArgs = null;
     lastThis = null;
@@ -34,7 +38,7 @@ function debounce(fn, wait = 300, options = {}) {
     lastThis = null;
   }
 
-  function debounced(...args) {
+  const debounced = function (...args: unknown[]) {
     lastArgs = args;
     lastThis = this;
     const shouldCallNow = leading && timerId === null;
@@ -44,7 +48,7 @@ function debounce(fn, wait = 300, options = {}) {
 
     if (shouldCallNow) return invoke();
     return lastResult;
-  }
+  } as T & { cancel: () => void; flush: () => unknown; pending: () => boolean };
 
   debounced.cancel = () => {
     if (timerId !== null) clearTimeout(timerId);
@@ -66,4 +70,4 @@ function debounce(fn, wait = 300, options = {}) {
   return debounced;
 }
 
-module.exports = debounce;
+export default debounce;

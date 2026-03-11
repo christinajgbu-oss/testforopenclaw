@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, ChangeEvent } from 'react';
 import debounce from '../utils/debounce';
 
 export default function Home() {
   const [inputValue, setInputValue] = useState('');
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState<string[]>([]);
   const [clickCount, setClickCount] = useState(0);
 
   // 防抖搜索示例
   const handleSearch = useCallback(
-    debounce((value) => {
+    debounce((value: string) => {
       setLogs((prev) => [...prev, `搜索: ${value}`]);
     }, 500),
     []
@@ -29,7 +29,7 @@ export default function Home() {
     [clickCount]
   );
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
     handleSearch(value);
