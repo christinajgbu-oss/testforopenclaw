@@ -76,11 +76,12 @@ export function SnakeGame() {
     <section
       style={{
         width: '100%',
-        maxWidth: 'min(920px, 100%)',
+        maxWidth: 'min(920px, calc(100vw - 20px))',
         display: 'grid',
         gap: 24,
         gridTemplateColumns: isWideLayout ? 'minmax(0, 1.05fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
         alignItems: 'center',
+        overflowX: 'hidden',
         background: 'rgba(15, 23, 42, 0.72)',
         border: '1px solid rgba(148, 163, 184, 0.22)',
         borderRadius: 28,
@@ -90,7 +91,7 @@ export function SnakeGame() {
         color: '#e5f7eb',
       }}
     >
-      <div style={{ display: 'grid', gap: 18 }}>
+      <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
         <div style={{ display: 'grid', gap: 10 }}>
           <span
             style={{
@@ -196,7 +197,7 @@ export function SnakeGame() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: 16, justifyItems: 'center' }}>
+      <div style={{ display: 'grid', gap: 16, justifyItems: 'center', minWidth: 0 }}>
         <div
           style={{
             width: 'min(100%, 520px)',

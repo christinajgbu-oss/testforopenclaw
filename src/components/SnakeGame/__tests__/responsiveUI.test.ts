@@ -48,7 +48,9 @@ describe('SnakeGame responsive UI', () => {
     const markup = renderGame();
 
     expect(markup).toContain('grid-template-columns:minmax(0, 1fr)');
-    expect(markup).toContain('max-width:min(920px, 100%)');
+    expect(markup).toContain('max-width:min(920px, calc(100vw - 20px))');
+    expect(markup).toContain('overflow-x:hidden');
+    expect(markup).toContain('min-width:0');
     expect(markup).toContain('width:min(100%, 520px)');
   });
 
