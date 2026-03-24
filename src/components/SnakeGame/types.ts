@@ -13,6 +13,8 @@ export type GameState = {
   direction: Direction;
   queuedDirection: Direction;
   score: number;
+  highScore: number;
+  previousHighScore: number;
   isGameOver: boolean;
 };
 

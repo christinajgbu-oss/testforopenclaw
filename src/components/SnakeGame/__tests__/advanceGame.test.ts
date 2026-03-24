@@ -16,6 +16,8 @@ function createState(overrides: Partial<GameState> = {}): GameState {
     direction: overrides.direction ?? 'RIGHT',
     queuedDirection: overrides.queuedDirection ?? overrides.direction ?? 'RIGHT',
     score: overrides.score ?? 0,
+    highScore: overrides.highScore ?? 0,
+    previousHighScore: overrides.previousHighScore ?? 0,
     isGameOver: overrides.isGameOver ?? false,
   };
 }

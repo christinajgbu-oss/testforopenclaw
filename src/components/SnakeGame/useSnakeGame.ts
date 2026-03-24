@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useEffectEvent, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 
 import { advanceGame } from './advanceGame';
 import { randomFoodPosition } from './gridHelpers';
@@ -12,37 +12,84 @@ import {
 } from './types';
 import type { Direction, GameState } from './types';
 
-// Server-safe initial state: food at a fixed position to avoid SSR/client mismatch
-const SERVER_INITIAL_STATE: GameState = {
-  snake: INITIAL_SNAKE,
-  food: { x: 12, y: 12 },
-  direction: INITIAL_DIRECTION,
-  queuedDirection: INITIAL_DIRECTION,
-  score: 0,
-  isGameOver: false,
-};
+const HIGH_SCORE_STORAGE_KEY = 'snake_highscore';
 
-function createInitialGameState(): GameState {
+type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+
+function getStorage(): StorageLike | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.localStorage;
+}
+
+function readHighScore(storage: StorageLike | null) {
+  const rawValue = storage?.getItem(HIGH_SCORE_STORAGE_KEY);
+  const parsedValue = Number.parseInt(rawValue ?? '', 10);
+
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+}
+
+export function createInitialGameState(
+  storage: StorageLike | null = getStorage(),
+  getFoodPosition: typeof randomFoodPosition = randomFoodPosition,
+): GameState {
+  const highScore = readHighScore(storage);
+
   return {
     snake: INITIAL_SNAKE,
-    food: randomFoodPosition(INITIAL_SNAKE),
+    food: getFoodPosition(INITIAL_SNAKE),
     direction: INITIAL_DIRECTION,
     queuedDirection: INITIAL_DIRECTION,
     score: 0,
+    highScore,
+    previousHighScore: highScore,
     isGameOver: false,
   };
 }
 
-export function useSnakeGame() {
-  const [gameState, setGameState] = useState<GameState>(SERVER_INITIAL_STATE);
+export function syncHighScoreOnGameOver(
+  state: GameState,
+  storage: StorageLike | null = getStorage(),
+): GameState {
+  if (!state.isGameOver || state.score <= state.highScore) {
+    return state;
+  }
 
-  // Randomize food position after mount (client only) to avoid SSR mismatch
+  storage?.setItem(HIGH_SCORE_STORAGE_KEY, String(state.score));
+
+  return {
+    ...state,
+    highScore: state.score,
+  };
+}
+
+// Lazy initializer: on server returns server-safe state, on client reads localStorage
+function createInitialGameStateLazy(): GameState {
+  const storage = typeof window !== 'undefined' ? getStorage() : null;
+  return createInitialGameState(storage, randomFoodPosition);
+}
+
+export function useSnakeGame() {
+  const [gameState, setGameState] = useState<GameState>(createInitialGameStateLazy);
+
+  // Randomize food position after mount (client only) to avoid SSR mismatch.
+  // Lazy initializer handles SSR safely; this effect fixes up the client state post-hydration.
+  const hasHydrated = useRef(false);
   useEffect(() => {
+    if (hasHydrated.current) return;
+    hasHydrated.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR hydration requires this pattern
     setGameState(createInitialGameState());
   }, []);
 
   const resetGame = useCallback(() => {
-    setGameState(createInitialGameState());
+    setGameState((current) => {
+      // Sync high score to localStorage before resetting
+      syncHighScoreOnGameOver(current);
+      return createInitialGameState();
+    });
   }, []);
 
   const turnSnake = useCallback((nextDirection: Direction) => {

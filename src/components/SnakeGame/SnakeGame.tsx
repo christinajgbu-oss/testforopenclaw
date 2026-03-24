@@ -2,6 +2,8 @@
 
 import { useMemo } from 'react';
 
+import pageStyles from '@/app/page.module.css';
+
 import { GRID_SIZE } from './types';
 import type { Cell } from './types';
 import { useSnakeGame } from './useSnakeGame';
@@ -11,7 +13,17 @@ function isSameCell(a: Cell, b: Cell) {
 }
 
 export function SnakeGame() {
-  const { food, isGameOver, resetGame, score, snake, turnSnake } = useSnakeGame();
+  const {
+    food,
+    highScore,
+    isGameOver,
+    previousHighScore,
+    resetGame,
+    score,
+    snake,
+    turnSnake,
+  } = useSnakeGame();
+  const hasNewHighScore = isGameOver && score > previousHighScore;
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
@@ -91,7 +103,7 @@ export function SnakeGame() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
               gap: 12,
             }}
           >
@@ -105,6 +117,29 @@ export function SnakeGame() {
             >
               <div style={{ color: '#99f6e4', fontSize: 13, marginBottom: 8 }}>当前得分</div>
               <div style={{ fontSize: 36, fontWeight: 700 }}>{score}</div>
+            </div>
+            <div
+              className={pageStyles.highScoreCard}
+              style={{
+                padding: 18,
+                borderRadius: 18,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  marginBottom: 8,
+                }}
+              >
+                <div className={pageStyles.highScoreLabel}>最高分</div>
+                {hasNewHighScore ? (
+                  <span className={pageStyles.newRecordBadge}>NEW!</span>
+                ) : null}
+              </div>
+              <div className={pageStyles.highScoreValue}>{highScore}</div>
             </div>
             <div
               style={{
