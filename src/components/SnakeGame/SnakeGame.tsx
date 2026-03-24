@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
-import { GRID_SIZE } from './types';
+import { ACHIEVEMENTS, GRID_SIZE } from './types';
 import type { Cell } from './types';
 import { useSnakeGame } from './useSnakeGame';
 
@@ -18,6 +18,7 @@ export function SnakeGame() {
     highScore,
     isGameOver,
     previousHighScore,
+    achievements,
     resetGame,
     score,
     snake,
@@ -240,6 +241,47 @@ export function SnakeGame() {
           <ControlButton label="←" onPress={() => turnSnake('LEFT')} />
           <ControlButton label="↓" onPress={() => turnSnake('DOWN')} />
           <ControlButton label="→" onPress={() => turnSnake('RIGHT')} />
+        </div>
+
+        <div style={{ display: 'grid', gap: 10, width: '100%' }}>
+          <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>成就</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(110px, 100%), 1fr))',
+              gap: 10,
+              width: '100%',
+            }}
+          >
+            {ACHIEVEMENTS.map((achievement) => {
+              const unlocked = achievements[achievement.id];
+
+              return (
+                <div
+                  key={achievement.id}
+                  title={`${achievement.name}: ${achievement.description}`}
+                  style={{
+                    display: 'grid',
+                    justifyItems: 'center',
+                    gap: 6,
+                    padding: '12px 10px',
+                    borderRadius: 16,
+                    background: unlocked
+                      ? 'rgba(34, 197, 94, 0.16)'
+                      : 'rgba(15, 23, 42, 0.82)',
+                    border: unlocked
+                      ? '1px solid rgba(134, 239, 172, 0.35)'
+                      : '1px solid rgba(148, 163, 184, 0.18)',
+                  }}
+                >
+                  <span style={{ fontSize: 24 }}>{unlocked ? achievement.icon : '🔒'}</span>
+                  <span style={{ fontSize: 12, color: unlocked ? '#dcfce7' : '#94a3b8' }}>
+                    {achievement.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>

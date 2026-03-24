@@ -34,6 +34,7 @@ function createGameState(overrides: Partial<GameState> = {}): GameState {
 function renderGame(state: Partial<GameState> = {}) {
   mockedUseSnakeGame.mockReturnValue({
     ...createGameState(state),
+    achievements: {},
     resetGame: vi.fn(),
     turnSnake: vi.fn(),
   });
