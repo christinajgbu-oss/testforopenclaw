@@ -23,7 +23,7 @@ export function SnakeGame() {
     snake,
     turnSnake,
   } = useSnakeGame();
-  const hasNewHighScore = isGameOver && score > previousHighScore;
+  const hasNewHighScore = isGameOver && highScore > previousHighScore;
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
@@ -136,7 +136,7 @@ export function SnakeGame() {
               >
                 <div className={pageStyles.highScoreLabel}>最高分</div>
                 {hasNewHighScore ? (
-                  <span className={pageStyles.newRecordBadge}>NEW!</span>
+                  <span className={pageStyles.newBadge}>NEW!</span>
                 ) : null}
               </div>
               <div className={pageStyles.highScoreValue}>{highScore}</div>

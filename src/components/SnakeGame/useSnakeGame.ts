@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import { advanceGame } from './advanceGame';
 import { randomFoodPosition } from './gridHelpers';
@@ -65,31 +65,34 @@ export function syncHighScoreOnGameOver(
   };
 }
 
-// Lazy initializer: on server returns server-safe state, on client reads localStorage
-function createInitialGameStateLazy(): GameState {
-  const storage = typeof window !== 'undefined' ? getStorage() : null;
-  return createInitialGameState(storage, randomFoodPosition);
-}
+// Server-safe initial state: food at a fixed position to avoid SSR/client mismatch
+const SERVER_INITIAL_STATE: GameState = {
+  snake: INITIAL_SNAKE,
+  food: { x: 12, y: 12 },
+  direction: INITIAL_DIRECTION,
+  queuedDirection: INITIAL_DIRECTION,
+  score: 0,
+  highScore: 0,
+  previousHighScore: 0,
+  isGameOver: false,
+};
 
 export function useSnakeGame() {
-  const [gameState, setGameState] = useState<GameState>(createInitialGameStateLazy);
+  const [gameState, setGameState] = useState<GameState>(SERVER_INITIAL_STATE);
 
   // Randomize food position after mount (client only) to avoid SSR mismatch.
-  // Lazy initializer handles SSR safely; this effect fixes up the client state post-hydration.
-  const hasHydrated = useRef(false);
   useEffect(() => {
-    if (hasHydrated.current) return;
-    hasHydrated.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR hydration requires this pattern
-    setGameState(createInitialGameState());
+    const timer = window.setTimeout(() => {
+      setGameState(createInitialGameState());
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const resetGame = useCallback(() => {
-    setGameState((current) => {
-      // Sync high score to localStorage before resetting
-      syncHighScoreOnGameOver(current);
-      return createInitialGameState();
-    });
+    setGameState(createInitialGameState());
   }, []);
 
   const turnSnake = useCallback((nextDirection: Direction) => {
@@ -109,7 +112,9 @@ export function useSnakeGame() {
   }, []);
 
   const tick = useEffectEvent(() => {
-    setGameState((currentState) => advanceGame(currentState));
+    setGameState((currentState) =>
+      syncHighScoreOnGameOver(advanceGame(currentState)),
+    );
   });
 
   useEffect(() => {
