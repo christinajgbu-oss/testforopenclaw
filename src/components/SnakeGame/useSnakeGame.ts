@@ -9,6 +9,13 @@ import {
 } from 'react';
 
 import { advanceGame } from './advanceGame';
+import {
+  playAchievement,
+  playDie,
+  playEat,
+  playNewRecord,
+  vibrate,
+} from './audio';
 import { randomFoodPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
@@ -142,6 +149,14 @@ type AchievementUpdateResult = {
   hasNewUnlock: boolean;
 };
 
+type SnakeGameFeedback = {
+  playAchievement: boolean;
+  playDie: boolean;
+  playEat: boolean;
+  playNewRecord: boolean;
+  vibrate: boolean;
+};
+
 function unlockIfNeeded(
   nextAchievements: AchievementStore,
   id: keyof AchievementStore,
@@ -228,6 +243,22 @@ export function updateAchievementState({
   };
 }
 
+export function getSnakeGameFeedback(
+  previousState: GameState,
+  nextState: GameState,
+  hasNewUnlock: boolean,
+): SnakeGameFeedback {
+  const ateFood = nextState.score > previousState.score;
+
+  return {
+    playAchievement: hasNewUnlock,
+    playDie: !previousState.isGameOver && nextState.isGameOver,
+    playEat: ateFood,
+    playNewRecord: nextState.highScore > nextState.previousHighScore,
+    vibrate: ateFood,
+  };
+}
+
 export function createInitialGameState(
   storage: StorageLike | null = getStorage(),
   getFoodPosition: typeof randomFoodPosition = randomFoodPosition,
@@ -301,13 +332,15 @@ export function useSnakeGame() {
         achievementsRef.current = result.achievements;
         setAchievements(result.achievements);
         writeAchievements(result.achievements);
-        return;
+        return result;
       }
 
       if (result.achievements !== achievementsRef.current) {
         achievementsRef.current = result.achievements;
         setAchievements(result.achievements);
       }
+
+      return result;
     },
     [],
   );
@@ -330,7 +363,13 @@ export function useSnakeGame() {
   }, []);
 
   const resetGame = useCallback(() => {
-    setGameState(createInitialGameState());
+    setGameState((currentState) => {
+      if (currentState.highScore > currentState.previousHighScore) {
+        playNewRecord();
+      }
+
+      return createInitialGameState();
+    });
     const nextMeta = createInitialAchievementMeta();
     achievementMetaRef.current = nextMeta;
     setAchievementMeta(nextMeta);
@@ -359,7 +398,29 @@ export function useSnakeGame() {
   const tick = useEffectEvent(() => {
     setGameState((currentState) => {
       const nextState = syncHighScoreOnGameOver(advanceGame(currentState));
-      applyAchievementUpdate(currentState, nextState);
+      const achievementResult = applyAchievementUpdate(currentState, nextState);
+      const feedback = getSnakeGameFeedback(
+        currentState,
+        nextState,
+        achievementResult.hasNewUnlock,
+      );
+
+      if (feedback.playEat) {
+        playEat();
+      }
+
+      if (feedback.vibrate) {
+        vibrate();
+      }
+
+      if (feedback.playDie) {
+        playDie();
+      }
+
+      if (feedback.playAchievement) {
+        playAchievement();
+      }
+
       return nextState;
     });
   });
