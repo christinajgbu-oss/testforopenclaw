@@ -200,10 +200,11 @@ export function SnakeGame() {
       <div style={{ display: 'grid', gap: 16, justifyItems: 'center', minWidth: 0 }}>
         <div
           style={{
-            width: 'min(100%, 520px)',
+            width: 'min(100%, calc(100vw - 48px))',
             aspectRatio: '1 / 1',
             padding: 'clamp(10px, 2.8vw, 14px)',
             borderRadius: 28,
+            overflow: 'hidden',
             background: 'rgba(2, 6, 23, 0.9)',
             border: '1px solid rgba(71, 85, 105, 0.65)',
             boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
@@ -214,6 +215,8 @@ export function SnakeGame() {
               display: 'grid',
               gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
               gap: 'clamp(3px, 1vw, 6px)',
+              minWidth: 0,
+              minHeight: 0,
               width: '100%',
               height: '100%',
             }}

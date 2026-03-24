@@ -51,7 +51,9 @@ describe('SnakeGame responsive UI', () => {
     expect(markup).toContain('max-width:min(920px, calc(100vw - 20px))');
     expect(markup).toContain('overflow-x:hidden');
     expect(markup).toContain('min-width:0');
-    expect(markup).toContain('width:min(100%, 520px)');
+    expect(markup).toContain('width:min(100%, calc(100vw - 48px))');
+    expect(markup).toContain('overflow:hidden');
+    expect(markup).toContain('min-height:0');
   });
 
   it('renders touch-friendly controls for mobile players', () => {
