@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
@@ -23,7 +23,21 @@ export function SnakeGame() {
     snake,
     turnSnake,
   } = useSnakeGame();
+  const [isWideLayout, setIsWideLayout] = useState(false);
   const hasNewHighScore = isGameOver && highScore > previousHighScore;
+
+  useEffect(() => {
+    const updateLayout = () => {
+      setIsWideLayout(window.innerWidth >= 860);
+    };
+
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+
+    return () => {
+      window.removeEventListener('resize', updateLayout);
+    };
+  }, []);
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
@@ -62,15 +76,15 @@ export function SnakeGame() {
     <section
       style={{
         width: '100%',
-        maxWidth: 920,
+        maxWidth: 'min(920px, 100%)',
         display: 'grid',
         gap: 24,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gridTemplateColumns: isWideLayout ? 'minmax(0, 1.05fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
         alignItems: 'center',
         background: 'rgba(15, 23, 42, 0.72)',
         border: '1px solid rgba(148, 163, 184, 0.22)',
         borderRadius: 28,
-        padding: 24,
+        padding: 'clamp(16px, 4vw, 24px)',
         boxShadow: '0 24px 80px rgba(15, 23, 42, 0.45)',
         backdropFilter: 'blur(18px)',
         color: '#e5f7eb',
@@ -103,7 +117,9 @@ export function SnakeGame() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gridTemplateColumns: isWideLayout
+                ? 'repeat(3, minmax(0, 1fr))'
+                : 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))',
               gap: 12,
             }}
           >
@@ -185,7 +201,7 @@ export function SnakeGame() {
           style={{
             width: 'min(100%, 520px)',
             aspectRatio: '1 / 1',
-            padding: 14,
+            padding: 'clamp(10px, 2.8vw, 14px)',
             borderRadius: 28,
             background: 'rgba(2, 6, 23, 0.9)',
             border: '1px solid rgba(71, 85, 105, 0.65)',
@@ -196,7 +212,7 @@ export function SnakeGame() {
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-              gap: 6,
+              gap: 'clamp(3px, 1vw, 6px)',
               width: '100%',
               height: '100%',
             }}
@@ -208,9 +224,10 @@ export function SnakeGame() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 64px)',
+            gridTemplateColumns: 'repeat(3, minmax(44px, 64px))',
             gap: 10,
             justifyContent: 'center',
+            width: '100%',
           }}
         >
           <span />
@@ -244,9 +261,13 @@ function ControlButton({
         borderRadius: 18,
         width: 64,
         height: 64,
+        minWidth: 44,
+        minHeight: 44,
         cursor: 'pointer',
         fontSize: 26,
         fontWeight: 700,
+        touchAction: 'manipulation',
+        userSelect: 'none',
       }}
     >
       {label}
