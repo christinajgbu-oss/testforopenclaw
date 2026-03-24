@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
-import { ACHIEVEMENTS, GRID_SIZE } from './types';
+import { ACHIEVEMENTS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
 import type { Cell } from './types';
 import { useSnakeGame } from './useSnakeGame';
 
@@ -21,11 +22,15 @@ export function SnakeGame() {
     achievements,
     resetGame,
     score,
+    selectedSkin,
+    setSkin,
     snake,
     turnSnake,
   } = useSnakeGame();
   const [isWideLayout, setIsWideLayout] = useState(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const hasNewHighScore = isGameOver && highScore > previousHighScore;
+  const activeSkin = SKINS.find((skin) => skin.id === selectedSkin) ?? SKINS[0];
 
   useEffect(() => {
     const updateLayout = () => {
@@ -39,6 +44,19 @@ export function SnakeGame() {
       window.removeEventListener('resize', updateLayout);
     };
   }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+
+    if (!section) {
+      return;
+    }
+
+    section.style.setProperty('--snake-head', activeSkin.headColor);
+    section.style.setProperty('--snake-body', activeSkin.bodyColor);
+    section.style.setProperty('--food-color', activeSkin.foodColor);
+    section.style.setProperty('--board-bg', activeSkin.bgColor);
+  }, [activeSkin]);
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
@@ -58,13 +76,15 @@ export function SnakeGame() {
             aspectRatio: '1 / 1',
             borderRadius: 10,
             background: isFood
-              ? 'radial-gradient(circle at 30% 30%, #fde68a, #f97316)'
+              ? 'radial-gradient(circle at 30% 30%, #fde68a, var(--food-color))'
               : isHead
-                ? 'linear-gradient(135deg, #bbf7d0, #22c55e)'
+                ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-head) 30%, white), var(--snake-head))'
                 : isSnake
-                  ? 'linear-gradient(135deg, #86efac, #15803d)'
+                  ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-body) 45%, white), var(--snake-body))'
                   : 'rgba(255,255,255,0.08)',
-            boxShadow: isFood ? '0 0 20px rgba(249, 115, 22, 0.45)' : 'none',
+            boxShadow: isFood
+              ? '0 0 20px color-mix(in srgb, var(--food-color) 45%, transparent)'
+              : 'none',
             transition: 'background 0.12s ease-out, transform 0.12s ease-out',
             transform: isHead ? 'scale(1.03)' : 'scale(1)',
           }}
@@ -75,7 +95,12 @@ export function SnakeGame() {
 
   return (
     <section
+      ref={sectionRef}
       style={{
+        '--snake-head': activeSkin.headColor,
+        '--snake-body': activeSkin.bodyColor,
+        '--food-color': activeSkin.foodColor,
+        '--board-bg': activeSkin.bgColor,
         width: '100%',
         maxWidth: 'min(920px, calc(100vw - 20px))',
         display: 'grid',
@@ -90,7 +115,7 @@ export function SnakeGame() {
         boxShadow: '0 24px 80px rgba(15, 23, 42, 0.45)',
         backdropFilter: 'blur(18px)',
         color: '#e5f7eb',
-      }}
+      } as CSSProperties}
     >
       <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
         <div style={{ display: 'grid', gap: 10 }}>
@@ -195,6 +220,73 @@ export function SnakeGame() {
             <p>控制方式：↑ ↓ ← → / W A S D</p>
             <p>规则：每吃到一个食物得 1 分，速度固定，死亡后停止。</p>
           </div>
+
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>皮肤</div>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              {SKINS.map((skin) => {
+                const unlocked = isSkinUnlocked(skin.id, achievements);
+                const isSelected = skin.id === activeSkin.id;
+
+                return (
+                  <button
+                    key={skin.id}
+                    type="button"
+                    aria-label={`选择${skin.name}皮肤`}
+                    aria-pressed={isSelected}
+                    title={unlocked ? skin.name : 'Unlock all achievements'}
+                    onClick={() => {
+                      if (!unlocked) {
+                        return;
+                      }
+
+                      setSkin(skin.id);
+                    }}
+                    style={{
+                      position: 'relative',
+                      appearance: 'none',
+                      borderRadius: 999,
+                      width: 58,
+                      height: 58,
+                      border: isSelected
+                        ? '3px solid #22c55e'
+                        : '1px solid rgba(148, 163, 184, 0.26)',
+                      background: `linear-gradient(135deg, ${skin.headColor}, ${skin.bodyColor})`,
+                      boxShadow: `inset 0 0 0 4px ${skin.bgColor}`,
+                      cursor: unlocked ? 'pointer' : 'not-allowed',
+                      opacity: unlocked ? 1 : 0.72,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        right: -2,
+                        bottom: -2,
+                        display: 'grid',
+                        placeItems: 'center',
+                        width: 22,
+                        height: 22,
+                        borderRadius: 999,
+                        background: unlocked ? skin.foodColor : 'rgba(15, 23, 42, 0.92)',
+                        color: unlocked ? '#0f172a' : '#f8fafc',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {unlocked ? '•' : '🔒'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -206,7 +298,7 @@ export function SnakeGame() {
             padding: 'clamp(10px, 2.8vw, 14px)',
             borderRadius: 28,
             overflow: 'hidden',
-            background: 'rgba(2, 6, 23, 0.9)',
+            background: 'var(--board-bg)',
             border: '1px solid rgba(71, 85, 105, 0.65)',
             boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
           }}

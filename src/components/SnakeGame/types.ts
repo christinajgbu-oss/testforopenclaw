@@ -28,6 +28,66 @@ export type AchievementMeta = {
   previousScore: number;
 };
 
+export const SKIN_STORAGE_KEY = 'snake_skin';
+
+export type SkinId = 'default' | 'neon' | 'pixel' | 'candy' | 'mario';
+
+export const SKINS: Array<{
+  id: SkinId;
+  name: string;
+  headColor: string;
+  bodyColor: string;
+  foodColor: string;
+  bgColor: string;
+  unlocked: boolean;
+}> = [
+  {
+    id: 'default',
+    name: '经典绿',
+    headColor: '#22c55e',
+    bodyColor: '#15803d',
+    foodColor: '#f97316',
+    bgColor: '#0a0a1a',
+    unlocked: true,
+  },
+  {
+    id: 'neon',
+    name: '霓虹夜',
+    headColor: '#06b6d4',
+    bodyColor: '#6366f1',
+    foodColor: '#f472b6',
+    bgColor: '#0a0a1a',
+    unlocked: true,
+  },
+  {
+    id: 'pixel',
+    name: '像素复古',
+    headColor: '#dc2626',
+    bodyColor: '#7c2d12',
+    foodColor: '#fbbf24',
+    bgColor: '#1c1917',
+    unlocked: true,
+  },
+  {
+    id: 'candy',
+    name: '糖果风',
+    headColor: '#f9a8d4',
+    bodyColor: '#db2777',
+    foodColor: '#a3e635',
+    bgColor: '#2e1065',
+    unlocked: false,
+  },
+  {
+    id: 'mario',
+    name: '马里奥',
+    headColor: '#ef4444',
+    bodyColor: '#1d4ed8',
+    foodColor: '#fbbf24',
+    bgColor: '#fef3c7',
+    unlocked: false,
+  },
+];
+
 export const ACHIEVEMENTS: Array<{
   id: AchievementId;
   icon: string;
@@ -126,3 +186,20 @@ export const OPPOSITE_DIRECTION: Record<Direction, Direction> = {
   LEFT: 'RIGHT',
   RIGHT: 'LEFT',
 };
+
+export function isSkinUnlocked(
+  skinId: SkinId,
+  achievements: AchievementStore,
+) {
+  const skin = SKINS.find((entry) => entry.id === skinId);
+
+  if (!skin) {
+    return false;
+  }
+
+  if (skin.unlocked) {
+    return true;
+  }
+
+  return ACHIEVEMENTS.every((achievement) => Boolean(achievements[achievement.id]));
+}

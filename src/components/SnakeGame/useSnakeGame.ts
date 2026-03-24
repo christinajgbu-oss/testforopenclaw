@@ -15,13 +15,17 @@ import {
   INITIAL_DIRECTION,
   INITIAL_SNAKE,
   OPPOSITE_DIRECTION,
+  SKINS,
+  SKIN_STORAGE_KEY,
   TICK_MS,
+  isSkinUnlocked,
 } from './types';
 import type {
   AchievementMeta,
   AchievementStore,
   Direction,
   GameState,
+  SkinId,
 } from './types';
 
 const HIGH_SCORE_STORAGE_KEY = 'snake_highscore';
@@ -42,6 +46,43 @@ function readHighScore(storage: StorageLike | null) {
   const parsedValue = Number.parseInt(rawValue ?? '', 10);
 
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+}
+
+function isSkinId(value: string | null | undefined): value is SkinId {
+  return SKINS.some((skin) => skin.id === value);
+}
+
+export function readSelectedSkin(
+  storage: StorageLike | null = getStorage(),
+  achievements: AchievementStore = {},
+): SkinId {
+  const rawValue = storage?.getItem(SKIN_STORAGE_KEY);
+
+  if (!isSkinId(rawValue)) {
+    return 'default';
+  }
+
+  return isSkinUnlocked(rawValue, achievements) ? rawValue : 'default';
+}
+
+export function writeSelectedSkin(
+  skinId: SkinId,
+  storage: StorageLike | null = getStorage(),
+) {
+  storage?.setItem(SKIN_STORAGE_KEY, skinId);
+}
+
+export function selectSkin(
+  skinId: SkinId,
+  achievements: AchievementStore,
+  storage: StorageLike | null = getStorage(),
+): SkinId {
+  if (!isSkinUnlocked(skinId, achievements)) {
+    return readSelectedSkin(storage, achievements);
+  }
+
+  writeSelectedSkin(skinId, storage);
+  return skinId;
 }
 
 export function createInitialAchievementMeta(): AchievementMeta {
@@ -236,6 +277,7 @@ const SERVER_INITIAL_STATE: GameState = {
 export function useSnakeGame() {
   const [gameState, setGameState] = useState<GameState>(SERVER_INITIAL_STATE);
   const [achievements, setAchievements] = useState<AchievementStore>({});
+  const [selectedSkin, setSelectedSkin] = useState<SkinId>('default');
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
@@ -277,6 +319,7 @@ export function useSnakeGame() {
       const storedAchievements = readAchievements();
       achievementsRef.current = storedAchievements;
       setAchievements(storedAchievements);
+      setSelectedSkin(readSelectedSkin(getStorage(), storedAchievements));
       achievementMetaRef.current = createInitialAchievementMeta();
       setAchievementMeta(createInitialAchievementMeta());
     }, 0);
@@ -307,6 +350,10 @@ export function useSnakeGame() {
         queuedDirection: nextDirection,
       };
     });
+  }, []);
+
+  const setSkin = useCallback((skinId: SkinId) => {
+    setSelectedSkin(selectSkin(skinId, achievementsRef.current));
   }, []);
 
   const tick = useEffectEvent(() => {
@@ -366,7 +413,9 @@ export function useSnakeGame() {
   return {
     ...gameState,
     achievements,
+    selectedSkin,
     resetGame,
+    setSkin,
     turnSnake,
   };
 }
