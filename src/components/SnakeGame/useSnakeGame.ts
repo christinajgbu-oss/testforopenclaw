@@ -309,11 +309,14 @@ export function useSnakeGame() {
   const [gameState, setGameState] = useState<GameState>(SERVER_INITIAL_STATE);
   const [achievements, setAchievements] = useState<AchievementStore>({});
   const [selectedSkin, setSelectedSkin] = useState<SkinId>('default');
+  const [durationSeconds, setDurationSeconds] = useState(0);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
   const achievementsRef = useRef(achievements);
   const achievementMetaRef = useRef(achievementMeta);
+  const gameStartTimeRef = useRef<number>(Date.now());
+  const previousIsGameOverRef = useRef(false);
 
   const applyAchievementUpdate = useCallback(
     (previousState: GameState, nextState: GameState) => {
@@ -355,6 +358,8 @@ export function useSnakeGame() {
       setSelectedSkin(readSelectedSkin(getStorage(), storedAchievements));
       achievementMetaRef.current = createInitialAchievementMeta();
       setAchievementMeta(createInitialAchievementMeta());
+      gameStartTimeRef.current = Date.now();
+      setDurationSeconds(0);
     }, 0);
 
     return () => {
@@ -373,6 +378,8 @@ export function useSnakeGame() {
     const nextMeta = createInitialAchievementMeta();
     achievementMetaRef.current = nextMeta;
     setAchievementMeta(nextMeta);
+    gameStartTimeRef.current = Date.now();
+    setDurationSeconds(0);
   }, []);
 
   const turnSnake = useCallback((nextDirection: Direction) => {
@@ -458,6 +465,16 @@ export function useSnakeGame() {
   }, [gameState.isGameOver, resetGame, turnSnake]);
 
   useEffect(() => {
+    if (!previousIsGameOverRef.current && gameState.isGameOver) {
+      setDurationSeconds(
+        Math.floor((Date.now() - gameStartTimeRef.current) / 1_000),
+      );
+    }
+
+    previousIsGameOverRef.current = gameState.isGameOver;
+  }, [gameState.isGameOver]);
+
+  useEffect(() => {
     if (gameState.isGameOver) {
       return;
     }
@@ -474,6 +491,7 @@ export function useSnakeGame() {
   return {
     ...gameState,
     achievements,
+    durationSeconds,
     selectedSkin,
     resetGame,
     setSkin,

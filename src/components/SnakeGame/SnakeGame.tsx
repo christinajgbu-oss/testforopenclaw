@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
+import { ShareCard } from './ShareCard';
 import { ACHIEVEMENTS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
 import type { Cell } from './types';
 import { useSnakeGame } from './useSnakeGame';
@@ -20,6 +21,7 @@ export function SnakeGame() {
     isGameOver,
     previousHighScore,
     achievements,
+    durationSeconds = 0,
     resetGame,
     score,
     selectedSkin,
@@ -31,6 +33,11 @@ export function SnakeGame() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const hasNewHighScore = isGameOver && highScore > previousHighScore;
   const activeSkin = SKINS.find((skin) => skin.id === selectedSkin) ?? SKINS[0];
+  const unlockedAchievementIds = ACHIEVEMENTS.filter(
+    (achievement) => achievements[achievement.id],
+  )
+    .slice(0, 3)
+    .map((achievement) => achievement.id);
 
   useEffect(() => {
     const updateLayout = () => {
@@ -94,289 +101,312 @@ export function SnakeGame() {
   }, [food, snake]);
 
   return (
-    <section
-      ref={sectionRef}
-      style={{
-        '--snake-head': activeSkin.headColor,
-        '--snake-body': activeSkin.bodyColor,
-        '--food-color': activeSkin.foodColor,
-        '--board-bg': activeSkin.bgColor,
-        width: '100%',
-        maxWidth: 'min(920px, calc(100vw - 20px))',
-        display: 'grid',
-        gap: 24,
-        gridTemplateColumns: isWideLayout ? 'minmax(0, 1.05fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
-        alignItems: 'center',
-        overflowX: 'hidden',
-        background: 'rgba(15, 23, 42, 0.72)',
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        borderRadius: 28,
-        padding: 'clamp(16px, 4vw, 24px)',
-        boxShadow: '0 24px 80px rgba(15, 23, 42, 0.45)',
-        backdropFilter: 'blur(18px)',
-        color: '#e5f7eb',
-      } as CSSProperties}
-    >
-      <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <span
-            style={{
-              width: 'fit-content',
-              padding: '6px 12px',
-              borderRadius: 999,
-              background: 'rgba(34, 197, 94, 0.14)',
-              color: '#86efac',
-              fontSize: 13,
-              letterSpacing: '0.08em',
-            }}
-          >
-            NEXT.JS SNAKE
-          </span>
-          <h1 style={{ fontSize: 'clamp(2.4rem, 5vw, 4rem)', lineHeight: 1, color: '#f8fafc' }}>
-            贪吃蛇
-          </h1>
-          <p style={{ color: '#cbd5e1', fontSize: 16, lineHeight: 1.7 }}>
-            使用方向键或 WASD 控制移动，撞墙或撞到自己时游戏结束。按 Enter 或点击按钮可以立即重新开始。
-          </p>
-        </div>
-
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isWideLayout
-                ? 'repeat(3, minmax(0, 1fr))'
-                : 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))',
-              gap: 12,
-            }}
-          >
-            <div
+    <>
+      <section
+        ref={sectionRef}
+        style={{
+          '--snake-head': activeSkin.headColor,
+          '--snake-body': activeSkin.bodyColor,
+          '--food-color': activeSkin.foodColor,
+          '--board-bg': activeSkin.bgColor,
+          width: '100%',
+          maxWidth: 'min(920px, calc(100vw - 20px))',
+          display: 'grid',
+          gap: 24,
+          gridTemplateColumns: isWideLayout ? 'minmax(0, 1.05fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
+          alignItems: 'center',
+          overflowX: 'hidden',
+          background: 'rgba(15, 23, 42, 0.72)',
+          border: '1px solid rgba(148, 163, 184, 0.22)',
+          borderRadius: 28,
+          padding: 'clamp(16px, 4vw, 24px)',
+          boxShadow: '0 24px 80px rgba(15, 23, 42, 0.45)',
+          backdropFilter: 'blur(18px)',
+          color: '#e5f7eb',
+        } as CSSProperties}
+      >
+        <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <span
               style={{
-                padding: 18,
-                borderRadius: 18,
-                background: 'rgba(15, 118, 110, 0.2)',
-                border: '1px solid rgba(45, 212, 191, 0.18)',
+                width: 'fit-content',
+                padding: '6px 12px',
+                borderRadius: 999,
+                background: 'rgba(34, 197, 94, 0.14)',
+                color: '#86efac',
+                fontSize: 13,
+                letterSpacing: '0.08em',
               }}
             >
-              <div style={{ color: '#99f6e4', fontSize: 13, marginBottom: 8 }}>当前得分</div>
-              <div style={{ fontSize: 36, fontWeight: 700 }}>{score}</div>
-            </div>
+              NEXT.JS SNAKE
+            </span>
+            <h1 style={{ fontSize: 'clamp(2.4rem, 5vw, 4rem)', lineHeight: 1, color: '#f8fafc' }}>
+              贪吃蛇
+            </h1>
+            <p style={{ color: '#cbd5e1', fontSize: 16, lineHeight: 1.7 }}>
+              使用方向键或 WASD 控制移动，撞墙或撞到自己时游戏结束。按 Enter 或点击按钮可以立即重新开始。
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gap: 12 }}>
             <div
-              className={pageStyles.highScoreCard}
               style={{
-                padding: 18,
-                borderRadius: 18,
+                display: 'grid',
+                gridTemplateColumns: isWideLayout
+                  ? 'repeat(3, minmax(0, 1fr))'
+                  : 'repeat(auto-fit, minmax(min(160px, 100%), 1fr))',
+                gap: 12,
               }}
             >
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  marginBottom: 8,
+                  padding: 18,
+                  borderRadius: 18,
+                  background: 'rgba(15, 118, 110, 0.2)',
+                  border: '1px solid rgba(45, 212, 191, 0.18)',
                 }}
               >
-                <div className={pageStyles.highScoreLabel}>最高分</div>
-                {hasNewHighScore ? (
-                  <span className={pageStyles.newBadge}>NEW!</span>
-                ) : null}
+                <div style={{ color: '#99f6e4', fontSize: 13, marginBottom: 8 }}>当前得分</div>
+                <div style={{ fontSize: 36, fontWeight: 700 }}>{score}</div>
               </div>
-              <div className={pageStyles.highScoreValue}>{highScore}</div>
+              <div
+                className={pageStyles.highScoreCard}
+                style={{
+                  padding: 18,
+                  borderRadius: 18,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div className={pageStyles.highScoreLabel}>最高分</div>
+                  {hasNewHighScore ? (
+                    <span className={pageStyles.newBadge}>NEW!</span>
+                  ) : null}
+                </div>
+                <div className={pageStyles.highScoreValue}>{highScore}</div>
+              </div>
+              <div
+                style={{
+                  padding: 18,
+                  borderRadius: 18,
+                  background: isGameOver ? 'rgba(127, 29, 29, 0.28)' : 'rgba(30, 41, 59, 0.72)',
+                  border: '1px solid rgba(148, 163, 184, 0.18)',
+                }}
+              >
+                <div style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 8 }}>游戏状态</div>
+                <div style={{ fontSize: 24, fontWeight: 700 }}>
+                  {isGameOver ? '游戏结束' : '进行中'}
+                </div>
+              </div>
             </div>
-            <div
+
+            <button
+              onClick={resetGame}
               style={{
-                padding: 18,
+                appearance: 'none',
+                border: 0,
+                cursor: 'pointer',
                 borderRadius: 18,
-                background: isGameOver ? 'rgba(127, 29, 29, 0.28)' : 'rgba(30, 41, 59, 0.72)',
-                border: '1px solid rgba(148, 163, 184, 0.18)',
+                padding: '14px 18px',
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#052e16',
+                background: 'linear-gradient(135deg, #86efac, #22c55e)',
               }}
             >
-              <div style={{ color: '#cbd5e1', fontSize: 13, marginBottom: 8 }}>游戏状态</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>
-                {isGameOver ? '游戏结束' : '进行中'}
-              </div>
+              重新开始
+            </button>
+
+            <div style={{ display: 'grid', gap: 8, color: '#94a3b8', fontSize: 14 }}>
+              <p>控制方式：↑ ↓ ← → / W A S D</p>
+              <p>规则：每吃到一个食物得 1 分，速度固定，死亡后停止。</p>
             </div>
-          </div>
 
-          <button
-            onClick={resetGame}
-            style={{
-              appearance: 'none',
-              border: 0,
-              cursor: 'pointer',
-              borderRadius: 18,
-              padding: '14px 18px',
-              fontSize: 16,
-              fontWeight: 700,
-              color: '#052e16',
-              background: 'linear-gradient(135deg, #86efac, #22c55e)',
-            }}
-          >
-            重新开始
-          </button>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>皮肤</div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                {SKINS.map((skin) => {
+                  const unlocked = isSkinUnlocked(skin.id, achievements);
+                  const isSelected = skin.id === activeSkin.id;
 
-          <div style={{ display: 'grid', gap: 8, color: '#94a3b8', fontSize: 14 }}>
-            <p>控制方式：↑ ↓ ← → / W A S D</p>
-            <p>规则：每吃到一个食物得 1 分，速度固定，死亡后停止。</p>
-          </div>
+                  return (
+                    <button
+                      key={skin.id}
+                      type="button"
+                      aria-label={`选择${skin.name}皮肤`}
+                      aria-pressed={isSelected}
+                      title={unlocked ? skin.name : 'Unlock all achievements'}
+                      onClick={() => {
+                        if (!unlocked) {
+                          return;
+                        }
 
-          <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>皮肤</div>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 12,
-              }}
-            >
-              {SKINS.map((skin) => {
-                const unlocked = isSkinUnlocked(skin.id, achievements);
-                const isSelected = skin.id === activeSkin.id;
-
-                return (
-                  <button
-                    key={skin.id}
-                    type="button"
-                    aria-label={`选择${skin.name}皮肤`}
-                    aria-pressed={isSelected}
-                    title={unlocked ? skin.name : 'Unlock all achievements'}
-                    onClick={() => {
-                      if (!unlocked) {
-                        return;
-                      }
-
-                      setSkin(skin.id);
-                    }}
-                    style={{
-                      position: 'relative',
-                      appearance: 'none',
-                      borderRadius: 999,
-                      width: 58,
-                      height: 58,
-                      border: isSelected
-                        ? '3px solid #22c55e'
-                        : '1px solid rgba(148, 163, 184, 0.26)',
-                      background: `linear-gradient(135deg, ${skin.headColor}, ${skin.bodyColor})`,
-                      boxShadow: `inset 0 0 0 4px ${skin.bgColor}`,
-                      cursor: unlocked ? 'pointer' : 'not-allowed',
-                      opacity: unlocked ? 1 : 0.72,
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
+                        setSkin(skin.id);
+                      }}
                       style={{
-                        position: 'absolute',
-                        right: -2,
-                        bottom: -2,
-                        display: 'grid',
-                        placeItems: 'center',
-                        width: 22,
-                        height: 22,
+                        position: 'relative',
+                        appearance: 'none',
                         borderRadius: 999,
-                        background: unlocked ? skin.foodColor : 'rgba(15, 23, 42, 0.92)',
-                        color: unlocked ? '#0f172a' : '#f8fafc',
-                        fontSize: 12,
-                        fontWeight: 700,
+                        width: 58,
+                        height: 58,
+                        border: isSelected
+                          ? '3px solid #22c55e'
+                          : '1px solid rgba(148, 163, 184, 0.26)',
+                        background: `linear-gradient(135deg, ${skin.headColor}, ${skin.bodyColor})`,
+                        boxShadow: `inset 0 0 0 4px ${skin.bgColor}`,
+                        cursor: unlocked ? 'pointer' : 'not-allowed',
+                        opacity: unlocked ? 1 : 0.72,
                       }}
                     >
-                      {unlocked ? '•' : '🔒'}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          position: 'absolute',
+                          right: -2,
+                          bottom: -2,
+                          display: 'grid',
+                          placeItems: 'center',
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          background: unlocked ? skin.foodColor : 'rgba(15, 23, 42, 0.92)',
+                          color: unlocked ? '#0f172a' : '#f8fafc',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {unlocked ? '•' : '🔒'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: 16, justifyItems: 'center', minWidth: 0 }}>
+          <div
+            style={{
+              width: 'min(100%, calc(100vw - 48px))',
+              aspectRatio: '1 / 1',
+              padding: 'clamp(10px, 2.8vw, 14px)',
+              borderRadius: 28,
+              overflow: 'hidden',
+              background: 'var(--board-bg)',
+              border: '1px solid rgba(71, 85, 105, 0.65)',
+              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+                gap: 'clamp(3px, 1vw, 6px)',
+                minWidth: 0,
+                minHeight: 0,
+                width: '100%',
+                height: '100%',
+              }}
+            >
+              {board}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(44px, 64px))',
+              gap: 10,
+              justifyContent: 'center',
+              width: '100%',
+            }}
+          >
+            <span />
+            <ControlButton label="↑" onPress={() => turnSnake('UP')} />
+            <span />
+            <ControlButton label="←" onPress={() => turnSnake('LEFT')} />
+            <ControlButton label="↓" onPress={() => turnSnake('DOWN')} />
+            <ControlButton label="→" onPress={() => turnSnake('RIGHT')} />
+          </div>
+
+          <div style={{ display: 'grid', gap: 10, width: '100%' }}>
+            <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>成就</div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(110px, 100%), 1fr))',
+                gap: 10,
+                width: '100%',
+              }}
+            >
+              {ACHIEVEMENTS.map((achievement) => {
+                const unlocked = achievements[achievement.id];
+
+                return (
+                  <div
+                    key={achievement.id}
+                    title={`${achievement.name}: ${achievement.description}`}
+                    style={{
+                      display: 'grid',
+                      justifyItems: 'center',
+                      gap: 6,
+                      padding: '12px 10px',
+                      borderRadius: 16,
+                      background: unlocked
+                        ? 'rgba(34, 197, 94, 0.16)'
+                        : 'rgba(15, 23, 42, 0.82)',
+                      border: unlocked
+                        ? '1px solid rgba(134, 239, 172, 0.35)'
+                        : '1px solid rgba(148, 163, 184, 0.18)',
+                    }}
+                  >
+                    <span style={{ fontSize: 24 }}>{unlocked ? achievement.icon : '🔒'}</span>
+                    <span style={{ fontSize: 12, color: unlocked ? '#dcfce7' : '#94a3b8' }}>
+                      {achievement.name}
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
         </div>
-      </div>
-
-      <div style={{ display: 'grid', gap: 16, justifyItems: 'center', minWidth: 0 }}>
+      </section>
+      {isGameOver ? (
         <div
           style={{
-            width: 'min(100%, calc(100vw - 48px))',
-            aspectRatio: '1 / 1',
-            padding: 'clamp(10px, 2.8vw, 14px)',
-            borderRadius: 28,
-            overflow: 'hidden',
-            background: 'var(--board-bg)',
-            border: '1px solid rgba(71, 85, 105, 0.65)',
-            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-              gap: 'clamp(3px, 1vw, 6px)',
-              minWidth: 0,
-              minHeight: 0,
-              width: '100%',
-              height: '100%',
-            }}
-          >
-            {board}
-          </div>
-        </div>
-
-        <div
-          style={{
+            position: 'fixed',
+            inset: 0,
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(44px, 64px))',
-            gap: 10,
-            justifyContent: 'center',
-            width: '100%',
+            placeItems: 'center',
+            padding: 24,
+            background: 'rgba(15, 23, 42, 0.78)',
+            zIndex: 50,
           }}
         >
-          <span />
-          <ControlButton label="↑" onPress={() => turnSnake('UP')} />
-          <span />
-          <ControlButton label="←" onPress={() => turnSnake('LEFT')} />
-          <ControlButton label="↓" onPress={() => turnSnake('DOWN')} />
-          <ControlButton label="→" onPress={() => turnSnake('RIGHT')} />
+          <ShareCard
+            score={score}
+            skinId={selectedSkin}
+            achievementIds={unlockedAchievementIds}
+            durationSeconds={durationSeconds}
+            onClose={resetGame}
+          />
         </div>
-
-        <div style={{ display: 'grid', gap: 10, width: '100%' }}>
-          <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>成就</div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(110px, 100%), 1fr))',
-              gap: 10,
-              width: '100%',
-            }}
-          >
-            {ACHIEVEMENTS.map((achievement) => {
-              const unlocked = achievements[achievement.id];
-
-              return (
-                <div
-                  key={achievement.id}
-                  title={`${achievement.name}: ${achievement.description}`}
-                  style={{
-                    display: 'grid',
-                    justifyItems: 'center',
-                    gap: 6,
-                    padding: '12px 10px',
-                    borderRadius: 16,
-                    background: unlocked
-                      ? 'rgba(34, 197, 94, 0.16)'
-                      : 'rgba(15, 23, 42, 0.82)',
-                    border: unlocked
-                      ? '1px solid rgba(134, 239, 172, 0.35)'
-                      : '1px solid rgba(148, 163, 184, 0.18)',
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>{unlocked ? achievement.icon : '🔒'}</span>
-                  <span style={{ fontSize: 12, color: unlocked ? '#dcfce7' : '#94a3b8' }}>
-                    {achievement.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </section>
+      ) : null}
+    </>
   );
 }
 

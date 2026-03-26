@@ -32,6 +32,14 @@ export const SKIN_STORAGE_KEY = 'snake_skin';
 
 export type SkinId = 'default' | 'neon' | 'pixel' | 'candy' | 'mario';
 
+export type ShareCardProps = {
+  score: number;
+  skinId: SkinId;
+  achievementIds: AchievementId[];
+  durationSeconds: number;
+  onClose: () => void;
+};
+
 export const SKINS: Array<{
   id: SkinId;
   name: string;
