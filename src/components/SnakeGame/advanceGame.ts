@@ -3,7 +3,6 @@ import {
   DIRECTION_OFFSETS,
   GRID_SIZE,
   OPPOSITE_DIRECTION,
-  PROPS,
 } from './types';
 import type { Cell, Food, GameState, PropId } from './types';
 
@@ -19,27 +18,17 @@ function isSameCell(a: Food, b: Food) {
   return a.x === b.x && a.y === b.y;
 }
 
-function makeFoodGetter(
-  extraAvoid: Food[],
+function getSafeFoodPosition(
+  snake: GameState['snake'],
+  getFoodPosition: GetFoodPosition,
+  extraAvoid: Food[] = [],
   obstacles: Cell[] = [],
-): (snake: GameState['snake']) => Food {
-  return (snake) => {
-    const avoidSet = new Set([
-      ...snake.map((s) => `${s.x}-${s.y}`),
-      ...extraAvoid.map((f) => `${f.x}-${f.y}`),
-      ...obstacles.map((o) => `${o.x}-${o.y}`),
-    ]);
-    const options: Food[] = [];
-    for (let y = 0; y < GRID_SIZE; y += 1) {
-      for (let x = 0; x < GRID_SIZE; x += 1) {
-        const key = `${x}-${y}`;
-        if (!avoidSet.has(key)) {
-          options.push({ x, y });
-        }
-      }
-    }
-    return options[Math.floor(Math.random() * options.length)] ?? { x: 0, y: 0 };
-  };
+) {
+  if (extraAvoid.length === 0 && obstacles.length === 0) {
+    return getFoodPosition(snake);
+  }
+
+  return randomFoodPosition(snake, GRID_SIZE, [...extraAvoid, ...obstacles]);
 }
 
 function applyPropEffect(
@@ -123,14 +112,15 @@ export function advanceGame(
 
   // Check collision
   const wouldCollide = isColliding(nextHead, bodyToCheck, GRID_SIZE);
-  const hitsObstacle = !ghostActive && state.obstacles.length > 0 && isObstacle(nextHead, state.obstacles);
+  const hitsObstacle =
+    state.obstacles.length > 0 && isObstacle(nextHead, state.obstacles);
 
   // Shield check
   const shieldActive =
     state.activeProps.shield?.expiresAt === Infinity;
 
   // Obstacle collision or wall/self collision
-  if ((wouldCollide || hitsObstacle) && !ghostActive) {
+  if (hitsObstacle || (wouldCollide && !ghostActive)) {
     if (shieldActive) {
       // Consume shield instead of dying
       const { shield: _shield, ...restActiveProps } = state.activeProps;
@@ -155,14 +145,17 @@ export function advanceGame(
 
   // Food regeneration
   const nextFood = atePrimaryFood
-    ? (state.bonusFood
-        ? makeFoodGetter([state.bonusFood], state.obstacles)(nextSnake)
-        : getFoodPosition(nextSnake))
+    ? getSafeFoodPosition(
+        nextSnake,
+        getFoodPosition,
+        state.bonusFood ? [state.bonusFood] : [],
+        state.obstacles,
+      )
     : state.food;
 
   const nextBonusFood = state.bonusFood
     ? ateBonusFood
-      ? makeFoodGetter([nextFood], state.obstacles)(nextSnake)
+      ? getSafeFoodPosition(nextSnake, getFoodPosition, [nextFood], state.obstacles)
       : state.bonusFood
     : undefined;
 
@@ -190,7 +183,7 @@ export function advanceGame(
 
   // Expire old props
   const now = Date.now();
-  const expiredProps = Object.entries(state.activeProps).reduce(
+  const expiredProps = Object.entries(nextActiveProps).reduce(
     (acc, [id, prop]) => {
       if (prop && prop.expiresAt !== Infinity && prop.expiresAt <= now) {
         return acc;

@@ -407,6 +407,25 @@ export function useSnakeGame() {
   const propSpawnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentPropsRef = useRef(gameState.activeProps);
 
+  const restartForSettings = useCallback(
+    (nextDifficulty: Difficulty, nextObstacleMode: ObstacleDifficulty | null) => {
+      setGameState(
+        createInitialGameState(
+          getStorage(),
+          randomFoodPosition,
+          nextDifficulty,
+          nextObstacleMode,
+        ),
+      );
+      const nextMeta = createInitialAchievementMeta();
+      achievementMetaRef.current = nextMeta;
+      setAchievementMeta(nextMeta);
+      gameStartTimeRef.current = Date.now();
+      setDurationSeconds(0);
+    },
+    [],
+  );
+
   const applyAchievementUpdate = useCallback(
     (previousState: GameState, nextState: GameState) => {
       const result = updateAchievementState({
@@ -471,7 +490,23 @@ export function useSnakeGame() {
     setAchievementMeta(nextMeta);
     gameStartTimeRef.current = Date.now();
     setDurationSeconds(0);
-  }, [difficulty]);
+  }, [difficulty, obstacleMode]);
+
+  const updateDifficulty = useCallback(
+    (nextDifficulty: Difficulty) => {
+      setDifficulty(nextDifficulty);
+      restartForSettings(nextDifficulty, obstacleMode);
+    },
+    [obstacleMode, restartForSettings],
+  );
+
+  const updateObstacleMode = useCallback(
+    (nextObstacleMode: ObstacleDifficulty | null) => {
+      setObstacleMode(nextObstacleMode);
+      restartForSettings(difficulty, nextObstacleMode);
+    },
+    [difficulty, restartForSettings],
+  );
 
   const turnSnake = useCallback((nextDirection: Direction) => {
     setGameState((currentState) => {
@@ -709,9 +744,9 @@ export function useSnakeGame() {
     durationSeconds,
     selectedSkin,
     difficulty,
-    setDifficulty,
+    setDifficulty: updateDifficulty,
     obstacleMode,
-    setObstacleMode,
+    setObstacleMode: updateObstacleMode,
     resetGame,
     setSkin,
     turnSnake,

@@ -1,8 +1,32 @@
-import { GRID_SIZE } from './types';
+import { GRID_SIZE, OBSTACLE_SETTINGS } from './types';
 import type { Cell, Food, ObstacleDifficulty, Prop } from './types';
 
 function isSameCell(a: Cell, b: Cell) {
   return a.x === b.x && a.y === b.y;
+}
+
+function toCellKey(cell: Cell) {
+  return `${cell.x}-${cell.y}`;
+}
+
+function listOpenCells(avoidSet: Set<string>, gridSize: number) {
+  const options: Cell[] = [];
+
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const candidate = { x, y };
+
+      if (!avoidSet.has(toCellKey(candidate))) {
+        options.push(candidate);
+      }
+    }
+  }
+
+  return options;
+}
+
+function pickRandomCell(options: Cell[]) {
+  return options[Math.floor(Math.random() * options.length)] ?? null;
 }
 
 export function isObstacle(cell: Cell, obstacles: Cell[]) {
@@ -15,12 +39,12 @@ export function generateObstacles(
   bonusFood: Food | undefined,
   difficulty: ObstacleDifficulty,
 ): Cell[] {
-  const count = { simple: 3, normal: 6, hard: 9 }[difficulty];
-  const snakeSet = new Set(snake.map((s) => `${s.x}-${s.y}`));
+  const count = OBSTACLE_SETTINGS[difficulty].count;
+  const snakeSet = new Set(snake.map(toCellKey));
   const avoidSet = new Set([
     ...snakeSet,
-    `${food.x}-${food.y}`,
-    ...(bonusFood ? [`${bonusFood.x}-${bonusFood.y}`] : []),
+    toCellKey(food),
+    ...(bonusFood ? [toCellKey(bonusFood)] : []),
     // Avoid snake head area (3x3 around head)
     ...[...Array(3)].flatMap((_, dx) =>
       [...Array(3)].map((_, dy) => {
@@ -31,40 +55,29 @@ export function generateObstacles(
     ),
   ]);
 
-  const placed: Cell[] = [];
-  const attempts = 200;
+  const options = listOpenCells(avoidSet, GRID_SIZE);
 
-  for (let i = 0; i < attempts && placed.length < count; i += 1) {
-    const x = Math.floor(Math.random() * GRID_SIZE);
-    const y = Math.floor(Math.random() * GRID_SIZE);
-    const key = `${x}-${y}`;
-
-    if (!avoidSet.has(key) && !placed.some((p) => p.x === x && p.y === y)) {
-      placed.push({ x, y });
-      avoidSet.add(key);
-    }
+  for (let index = options.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const current = options[index];
+    options[index] = options[randomIndex];
+    options[randomIndex] = current;
   }
 
-  return placed;
+  return options.slice(0, count);
 }
 
 export function randomFoodPosition(
   snake: Cell[],
   gridSize: number = GRID_SIZE,
+  blockedCells: Cell[] = [],
 ): Food {
-  const options: Food[] = [];
-  const avoidSet = new Set(snake.map((s) => `${s.x}-${s.y}`));
+  const avoidSet = new Set([
+    ...snake.map(toCellKey),
+    ...blockedCells.map(toCellKey),
+  ]);
 
-  for (let y = 0; y < gridSize; y += 1) {
-    for (let x = 0; x < gridSize; x += 1) {
-      const key = `${x}-${y}`;
-      if (!avoidSet.has(key)) {
-        options.push({ x, y });
-      }
-    }
-  }
-
-  return options[Math.floor(Math.random() * options.length)] ?? { x: 0, y: 0 };
+  return pickRandomCell(listOpenCells(avoidSet, gridSize)) ?? { x: 0, y: 0 };
 }
 
 export function isColliding(cell: Cell, snake: Cell[], gridSize = GRID_SIZE) {
@@ -86,27 +99,12 @@ export function randomPropPosition(
   obstacles: Cell[] = [],
 ): { x: number; y: number } | null {
   const avoidSet = new Set([
-    ...snake.map((s) => `${s.x}-${s.y}`),
-    `${food.x}-${food.y}`,
-    ...(bonusFood ? [`${bonusFood.x}-${bonusFood.y}`] : []),
-    ...(existingProp ? [`${existingProp.x}-${existingProp.y}`] : []),
-    ...obstacles.map((o) => `${o.x}-${o.y}`),
+    ...snake.map(toCellKey),
+    toCellKey(food),
+    ...(bonusFood ? [toCellKey(bonusFood)] : []),
+    ...(existingProp ? [toCellKey(existingProp)] : []),
+    ...obstacles.map(toCellKey),
   ]);
 
-  const options: Array<{ x: number; y: number }> = [];
-
-  for (let y = 0; y < GRID_SIZE; y += 1) {
-    for (let x = 0; x < GRID_SIZE; x += 1) {
-      const key = `${x}-${y}`;
-      if (!avoidSet.has(key)) {
-        options.push({ x, y });
-      }
-    }
-  }
-
-  if (options.length === 0) {
-    return null;
-  }
-
-  return options[Math.floor(Math.random() * options.length)];
+  return pickRandomCell(listOpenCells(avoidSet, GRID_SIZE));
 }
