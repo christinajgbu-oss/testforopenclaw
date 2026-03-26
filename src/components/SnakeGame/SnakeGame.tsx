@@ -492,6 +492,7 @@ export function SnakeGame() {
             achievementIds={unlockedAchievementIds}
             durationSeconds={durationSeconds}
             onClose={resetGame}
+            onRestart={resetGame}
           />
         </div>
       ) : null}

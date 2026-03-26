@@ -25,6 +25,7 @@ export function ShareCard({
   achievementIds,
   durationSeconds,
   onClose,
+  onRestart,
 }: ShareCardProps) {
   const activeSkin = SKINS.find((skin) => skin.id === skinId) ?? SKINS[0];
   const visibleAchievements = achievementIds
@@ -206,8 +207,26 @@ export function ShareCard({
           gap: 12,
           justifyContent: 'center',
           marginTop: 'auto',
+          flexWrap: 'wrap',
         }}
       >
+        <button
+          data-testid="share-card-restart"
+          type="button"
+          onClick={onRestart}
+          style={{
+            padding: '10px 20px',
+            borderRadius: 10,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            border: 'none',
+            background: 'linear-gradient(135deg, #86efac, #22c55e)',
+            color: '#052e16',
+          }}
+        >
+          🔄 再来一局
+        </button>
         <button
           data-testid="share-card-save"
           type="button"
@@ -240,7 +259,7 @@ export function ShareCard({
             color: '#ffffff',
           }}
         >
-          🐦 分享到 Twitter
+          🐦 分享
         </button>
         <button
           data-testid="share-card-close"

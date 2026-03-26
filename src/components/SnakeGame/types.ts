@@ -63,6 +63,7 @@ export type ShareCardProps = {
   achievementIds: AchievementId[];
   durationSeconds: number;
   onClose: () => void;
+  onRestart: () => void;
 };
 
 export const SKINS: Array<{

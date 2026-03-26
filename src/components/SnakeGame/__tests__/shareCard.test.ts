@@ -18,6 +18,7 @@ function createProps(overrides: Partial<ShareCardProps> = {}): ShareCardProps {
     achievementIds: ['first_bite', 'comeback_kid', 'speedster'],
     durationSeconds: 204,
     onClose: vi.fn(),
+    onRestart: vi.fn(),
     ...overrides,
   };
 }
