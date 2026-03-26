@@ -183,6 +183,7 @@ export type GameState = {
   highScore: number;
   previousHighScore: number;
   isGameOver: boolean;
+  gameStatus: 'idle' | 'running' | 'gameover';
 };
 
 export const GRID_SIZE = 16;
@@ -210,6 +211,8 @@ export const OPPOSITE_DIRECTION: Record<Direction, Direction> = {
   LEFT: 'RIGHT',
   RIGHT: 'LEFT',
 };
+
+export type GameStatus = 'idle' | 'running' | 'gameover';
 
 export function isSkinUnlocked(
   skinId: SkinId,

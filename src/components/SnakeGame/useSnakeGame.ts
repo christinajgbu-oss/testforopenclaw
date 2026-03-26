@@ -303,6 +303,7 @@ export function createInitialGameState(
     highScore,
     previousHighScore: highScore,
     isGameOver: false,
+    gameStatus: 'idle',
   };
 }
 
@@ -333,6 +334,7 @@ const SERVER_INITIAL_STATE: GameState = {
   highScore: 0,
   previousHighScore: 0,
   isGameOver: false,
+  gameStatus: 'idle',
 };
 
 export function useSnakeGame() {
@@ -416,8 +418,18 @@ export function useSnakeGame() {
 
   const turnSnake = useCallback((nextDirection: Direction) => {
     setGameState((currentState) => {
+      // Start game from idle
+      if (currentState.gameStatus === 'idle') {
+        return {
+          ...currentState,
+          gameStatus: 'running',
+          queuedDirection: nextDirection,
+        };
+      }
+
       if (
         currentState.isGameOver ||
+        currentState.gameStatus === 'gameover' ||
         nextDirection === OPPOSITE_DIRECTION[currentState.direction]
       ) {
         return currentState;
@@ -437,10 +449,15 @@ export function useSnakeGame() {
   const tick = useEffectEvent(() => {
     setGameState((currentState) => {
       const nextState = syncHighScoreOnGameOver(advanceGame(currentState));
-      const achievementResult = applyAchievementUpdate(currentState, nextState);
+      // Ensure gameStatus reflects game over
+      const finalState =
+        nextState.isGameOver && currentState.gameStatus !== 'gameover'
+          ? { ...nextState, gameStatus: 'gameover' as const }
+          : nextState;
+      const achievementResult = applyAchievementUpdate(currentState, finalState);
       const feedback = getSnakeGameFeedback(
         currentState,
-        nextState,
+        finalState,
         achievementResult.hasNewUnlock,
       );
 
@@ -466,26 +483,33 @@ export function useSnakeGame() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-
-      if (key === 'arrowup' || key === 'w') {
-        turnSnake('UP');
-      }
-
-      if (key === 'arrowdown' || key === 's') {
-        turnSnake('DOWN');
-      }
-
-      if (key === 'arrowleft' || key === 'a') {
-        turnSnake('LEFT');
-      }
-
-      if (key === 'arrowright' || key === 'd') {
-        turnSnake('RIGHT');
-      }
-
-      if (event.key === 'Enter' && gameState.isGameOver) {
+      // From gameover, Enter resets to idle
+      if (event.key === 'Enter' && gameState.gameStatus === 'gameover') {
         resetGame();
+        return;
+      }
+
+      // Direction controls also start the game from idle
+      const key = event.key.toLowerCase();
+      if (
+        key === 'arrowup' ||
+        key === 'arrowdown' ||
+        key === 'arrowleft' ||
+        key === 'arrowright' ||
+        key === 'w' ||
+        key === 'a' ||
+        key === 's' ||
+        key === 'd'
+      ) {
+        turnSnake(
+          key === 'arrowup' || key === 'w'
+            ? 'UP'
+            : key === 'arrowdown' || key === 's'
+              ? 'DOWN'
+              : key === 'arrowleft' || key === 'a'
+                ? 'LEFT'
+                : 'RIGHT',
+        );
       }
     };
 
@@ -494,12 +518,16 @@ export function useSnakeGame() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [gameState.isGameOver, resetGame, turnSnake]);
+  }, [gameState.gameStatus, resetGame, turnSnake]);
 
   useEffect(() => {
     if (!previousIsGameOverRef.current && gameState.isGameOver) {
       setDurationSeconds(
         Math.floor((Date.now() - gameStartTimeRef.current) / 1_000),
+      );
+      // Transition to gameover status
+      setGameState((current) =>
+        current.isGameOver ? current : { ...current, gameStatus: 'gameover' },
       );
     }
 
@@ -507,7 +535,7 @@ export function useSnakeGame() {
   }, [gameState.isGameOver]);
 
   useEffect(() => {
-    if (gameState.isGameOver) {
+    if (gameState.gameStatus !== 'running') {
       return;
     }
 
@@ -518,7 +546,7 @@ export function useSnakeGame() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [gameState.isGameOver, difficulty]);
+  }, [gameState.gameStatus, difficulty]);
 
   return {
     ...gameState,

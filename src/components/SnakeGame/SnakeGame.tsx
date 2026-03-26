@@ -19,6 +19,7 @@ export function SnakeGame() {
     bonusFood,
     difficulty,
     food,
+    gameStatus,
     highScore,
     isGameOver,
     previousHighScore,
@@ -356,6 +357,7 @@ export function SnakeGame() {
               background: 'var(--board-bg)',
               border: '1px solid rgba(71, 85, 105, 0.65)',
               boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.03)',
+              position: 'relative',
             }}
           >
             <div
@@ -371,6 +373,27 @@ export function SnakeGame() {
             >
               {board}
             </div>
+            {gameStatus === 'idle' && (
+              <div
+                onClick={() => turnSnake('RIGHT')}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(0,0,0,0.45)',
+                  borderRadius: 28,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#fff',
+                  letterSpacing: '0.06em',
+                  cursor: 'pointer',
+                }}
+              >
+                按任意键开始
+              </div>
+            )}
           </div>
 
           <div

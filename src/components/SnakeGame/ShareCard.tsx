@@ -109,7 +109,7 @@ export function ShareCard({
             letterSpacing: '0.06em',
           }}
         >
-          贪吃蛇增强版
+          本局结束
         </span>
         <span
           style={{

@@ -73,7 +73,7 @@ describe('ShareCard', () => {
   it('renders the score, skin, achievements, and duration details', () => {
     const markup = renderToStaticMarkup(createElement(ShareCard, createProps()));
 
-    expect(markup).toContain('贪吃蛇增强版');
+    expect(markup).toContain('本局结束');
     expect(markup).toContain('经典绿');
     expect(markup).toContain('42');
     expect(markup).toContain('First Bite');
