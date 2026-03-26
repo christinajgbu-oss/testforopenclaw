@@ -129,6 +129,20 @@ export const DIFFICULTY_SETTINGS: Record<Difficulty, DifficultySetting> = {
   hard: { tickMs: 70, foodCount: 1, label: '困难', labelEn: 'Hard' },
 };
 
+export type ObstacleDifficulty = 'simple' | 'normal' | 'hard';
+
+export type ObstacleDifficultySetting = {
+  count: number;
+  label: string;
+  labelEn: string;
+};
+
+export const OBSTACLE_SETTINGS: Record<ObstacleDifficulty, ObstacleDifficultySetting> = {
+  simple: { count: 3, label: '简单', labelEn: 'Simple' },
+  normal: { count: 6, label: '普通', labelEn: 'Normal' },
+  hard: { count: 9, label: '困难', labelEn: 'Hard' },
+};
+
 export type ShareCardProps = {
   score: number;
   skinId: SkinId;
@@ -260,6 +274,7 @@ export type GameState = {
   snake: Cell[];
   food: Food;
   bonusFood?: Food;
+  obstacles: Cell[];
   direction: Direction;
   queuedDirection: Direction;
   score: number;

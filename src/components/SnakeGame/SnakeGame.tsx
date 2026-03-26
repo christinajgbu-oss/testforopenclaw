@@ -6,8 +6,8 @@ import type { CSSProperties } from 'react';
 import pageStyles from '@/app/page.module.css';
 
 import { ShareCard } from './ShareCard';
-import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
-import type { Cell, Difficulty, Prop, PropId } from './types';
+import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, OBSTACLE_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
+import type { Cell, Difficulty, ObstacleDifficulty, Prop, PropId } from './types';
 import { useSnakeGame } from './useSnakeGame';
 
 function isSameCell(a: Cell, b: Cell) {
@@ -24,6 +24,8 @@ export function SnakeGame() {
     highScore,
     history,
     isGameOver,
+    obstacles,
+    obstacleMode,
     previousHighScore,
     achievements,
     durationSeconds = 0,
@@ -32,6 +34,7 @@ export function SnakeGame() {
     score,
     selectedSkin,
     setDifficulty,
+    setObstacleMode,
     setSkin,
     snake,
     turnSnake,
@@ -97,6 +100,7 @@ export function SnakeGame() {
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
+    const obstacleSet = new Set(obstacles.map((o) => `${o.x}-${o.y}`));
 
     return Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
       const x = index % GRID_SIZE;
@@ -105,6 +109,7 @@ export function SnakeGame() {
       const isHead = isSameCell(snake[0], { x, y });
       const isFood = isSameCell(food, { x, y });
       const isBonusFood = bonusFood ? isSameCell(bonusFood, { x, y }) : false;
+      const isObstacle = obstacleSet.has(key);
       const isSnake = snakeCells.has(key);
       const isProp = prop ? isSameCell(prop, { x, y }) : false;
       const propData = isProp ? PROPS.find((p) => p.id === prop!.id) : null;
@@ -121,12 +126,16 @@ export function SnakeGame() {
                 ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-head) 30%, white), var(--snake-head))'
                 : isSnake
                   ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-body) 45%, white), var(--snake-body))'
-                  : 'rgba(255,255,255,0.08)',
+                  : isObstacle
+                    ? 'linear-gradient(135deg, #4a4a4a, #2a2a2a)'
+                    : 'rgba(255,255,255,0.08)',
             boxShadow: isFood || isBonusFood
               ? '0 0 20px color-mix(in srgb, var(--food-color) 45%, transparent)'
               : isProp
                 ? '0 0 12px rgba(255,255,255,0.4)'
-                : 'none',
+                : isObstacle
+                  ? 'inset 0 0 6px rgba(0,0,0,0.6)'
+                  : 'none',
             transition: 'background 0.12s ease-out, transform 0.12s ease-out',
             transform: isHead ? 'scale(1.03)' : 'scale(1)',
             display: 'flex',
@@ -141,7 +150,7 @@ export function SnakeGame() {
         </div>
       );
     });
-  }, [bonusFood, food, prop, snake]);
+  }, [bonusFood, food, obstacles, prop, snake]);
 
   return (
     <>
@@ -238,6 +247,71 @@ export function SnakeGame() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Obstacle mode toggle + sub-difficulty */}
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (obstacleMode === null) {
+                      setObstacleMode('normal');
+                    } else {
+                      setObstacleMode(null);
+                    }
+                  }}
+                  style={{
+                    appearance: 'none',
+                    border: '1px solid rgba(148, 163, 184, 0.26)',
+                    borderRadius: 12,
+                    padding: '8px 16px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    background: obstacleMode !== null
+                      ? 'linear-gradient(135deg, #fde68a, #f59e0b)'
+                      : 'rgba(30, 41, 59, 0.9)',
+                    color: obstacleMode !== null ? '#451a03' : '#94a3b8',
+                    transition: 'all 0.15s ease-out',
+                  }}
+                >
+                  🧱 障碍物模式 {obstacleMode !== null ? '开' : '关'}
+                </button>
+                {obstacleMode !== null && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(Object.keys(OBSTACLE_SETTINGS) as ObstacleDifficulty[]).map((d) => {
+                      const setting = OBSTACLE_SETTINGS[d];
+                      const isActive = d === obstacleMode;
+
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          aria-pressed={isActive}
+                          onClick={() => setObstacleMode(d)}
+                          style={{
+                            appearance: 'none',
+                            border: 'none',
+                            borderRadius: 10,
+                            padding: '5px 12px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            background: isActive
+                              ? 'linear-gradient(135deg, #86efac, #22c55e)'
+                              : 'rgba(30, 41, 59, 0.9)',
+                            color: isActive ? '#052e16' : '#94a3b8',
+                            transition: 'all 0.15s ease-out',
+                          }}
+                        >
+                          {setting.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

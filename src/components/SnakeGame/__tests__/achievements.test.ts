@@ -60,6 +60,7 @@ function createGameState(overrides: Partial<GameState> = {}): GameState {
     gameStatus: 'running',
     prop: null,
     activeProps: {},
+    obstacles: [],
   };
 }
 
@@ -246,6 +247,7 @@ describe('SnakeGame achievements UI', () => {
       },
       resetGame: vi.fn(),
       turnSnake: vi.fn(),
+      setObstacleMode: vi.fn(),
     } as ReturnType<typeof useSnakeGame>);
 
     const markup = renderToStaticMarkup(createElement(SnakeGame));

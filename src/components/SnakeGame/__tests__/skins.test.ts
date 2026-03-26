@@ -66,6 +66,7 @@ function createGameState(overrides: Partial<GameState> = {}): GameState {
     gameStatus: 'running',
     prop: null,
     activeProps: {},
+    obstacles: [],
   };
 }
 
@@ -121,6 +122,7 @@ describe('snake skins', () => {
       resetGame: vi.fn(),
       setSkin: vi.fn(),
       turnSnake: vi.fn(),
+      setObstacleMode: vi.fn(),
     } as ReturnType<typeof useSnakeGame>);
 
     const markup = renderToStaticMarkup(createElement(SnakeGame));

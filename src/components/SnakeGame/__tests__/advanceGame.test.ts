@@ -22,6 +22,7 @@ function createState(overrides: Partial<GameState> = {}): GameState {
     gameStatus: 'running',
     prop: null,
     activeProps: {},
+    obstacles: overrides.obstacles ?? [],
   };
 }
 

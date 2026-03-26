@@ -1,11 +1,11 @@
-import { isColliding, randomFoodPosition } from './gridHelpers';
+import { isColliding, isObstacle, randomFoodPosition } from './gridHelpers';
 import {
   DIRECTION_OFFSETS,
   GRID_SIZE,
   OPPOSITE_DIRECTION,
   PROPS,
 } from './types';
-import type { Food, GameState, PropId } from './types';
+import type { Cell, Food, GameState, PropId } from './types';
 
 type GetFoodPosition = (snake: GameState['snake']) => Food;
 
@@ -21,11 +21,13 @@ function isSameCell(a: Food, b: Food) {
 
 function makeFoodGetter(
   extraAvoid: Food[],
+  obstacles: Cell[] = [],
 ): (snake: GameState['snake']) => Food {
   return (snake) => {
     const avoidSet = new Set([
       ...snake.map((s) => `${s.x}-${s.y}`),
       ...extraAvoid.map((f) => `${f.x}-${f.y}`),
+      ...obstacles.map((o) => `${o.x}-${o.y}`),
     ]);
     const options: Food[] = [];
     for (let y = 0; y < GRID_SIZE; y += 1) {
@@ -121,12 +123,14 @@ export function advanceGame(
 
   // Check collision
   const wouldCollide = isColliding(nextHead, bodyToCheck, GRID_SIZE);
+  const hitsObstacle = !ghostActive && state.obstacles.length > 0 && isObstacle(nextHead, state.obstacles);
 
   // Shield check
   const shieldActive =
     state.activeProps.shield?.expiresAt === Infinity;
 
-  if (wouldCollide && !ghostActive) {
+  // Obstacle collision or wall/self collision
+  if ((wouldCollide || hitsObstacle) && !ghostActive) {
     if (shieldActive) {
       // Consume shield instead of dying
       const { shield: _shield, ...restActiveProps } = state.activeProps;
@@ -152,13 +156,13 @@ export function advanceGame(
   // Food regeneration
   const nextFood = atePrimaryFood
     ? (state.bonusFood
-        ? makeFoodGetter([state.bonusFood])(nextSnake)
+        ? makeFoodGetter([state.bonusFood], state.obstacles)(nextSnake)
         : getFoodPosition(nextSnake))
     : state.food;
 
   const nextBonusFood = state.bonusFood
     ? ateBonusFood
-      ? makeFoodGetter([nextFood])(nextSnake)
+      ? makeFoodGetter([nextFood], state.obstacles)(nextSnake)
       : state.bonusFood
     : undefined;
 

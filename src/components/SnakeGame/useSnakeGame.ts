@@ -16,7 +16,7 @@ import {
   playNewRecord,
   vibrate,
 } from './audio';
-import { randomFoodPosition, randomPropPosition } from './gridHelpers';
+import { generateObstacles, randomFoodPosition, randomPropPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
   DIFFICULTY_SETTINGS,
@@ -37,6 +37,7 @@ import type {
   Food,
   GameState,
   HistoryEntry,
+  ObstacleDifficulty,
   PropId,
   PropType,
   SkinId,
@@ -304,6 +305,7 @@ export function createInitialGameState(
   storage: StorageLike | null = getStorage(),
   getFoodPosition: typeof randomFoodPosition = randomFoodPosition,
   difficulty: Difficulty = 'normal',
+  obstacleMode: ObstacleDifficulty | null = null,
 ): GameState {
   const highScore = readHighScore(storage);
   const primaryFood = getFoodPosition(INITIAL_SNAKE);
@@ -331,10 +333,17 @@ export function createInitialGameState(
         })()
       : undefined;
 
+  // Generate obstacles if obstacle mode is set
+  const obstacles =
+    obstacleMode !== null
+      ? generateObstacles(INITIAL_SNAKE, primaryFood, bonusFood, obstacleMode)
+      : [];
+
   return {
     snake: INITIAL_SNAKE,
     food: primaryFood,
     bonusFood,
+    obstacles,
     direction: INITIAL_DIRECTION,
     queuedDirection: INITIAL_DIRECTION,
     score: 0,
@@ -368,6 +377,7 @@ const SERVER_INITIAL_STATE: GameState = {
   snake: INITIAL_SNAKE,
   food: { x: 12, y: 12 },
   bonusFood: undefined,
+  obstacles: [],
   direction: INITIAL_DIRECTION,
   queuedDirection: INITIAL_DIRECTION,
   score: 0,
@@ -386,6 +396,7 @@ export function useSnakeGame() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [obstacleMode, setObstacleMode] = useState<ObstacleDifficulty | null>(null);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
@@ -429,7 +440,7 @@ export function useSnakeGame() {
   // Randomize food position after mount (client only) to avoid SSR mismatch.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setGameState(createInitialGameState(getStorage(), randomFoodPosition, difficulty));
+      setGameState(createInitialGameState(getStorage(), randomFoodPosition, difficulty, obstacleMode));
       const storedAchievements = readAchievements();
       achievementsRef.current = storedAchievements;
       setAchievements(storedAchievements);
@@ -453,7 +464,7 @@ export function useSnakeGame() {
         playNewRecord();
       }
 
-      return createInitialGameState(getStorage(), randomFoodPosition, difficulty);
+      return createInitialGameState(getStorage(), randomFoodPosition, difficulty, obstacleMode);
     });
     const nextMeta = createInitialAchievementMeta();
     achievementMetaRef.current = nextMeta;
@@ -615,6 +626,7 @@ export function useSnakeGame() {
           current.food,
           current.bonusFood,
           null,
+          current.obstacles,
         );
         if (!pos) return current;
         const propType: PropType =
@@ -698,6 +710,8 @@ export function useSnakeGame() {
     selectedSkin,
     difficulty,
     setDifficulty,
+    obstacleMode,
+    setObstacleMode,
     resetGame,
     setSkin,
     turnSnake,
