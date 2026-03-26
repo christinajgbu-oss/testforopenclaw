@@ -6,8 +6,8 @@ import type { CSSProperties } from 'react';
 import pageStyles from '@/app/page.module.css';
 
 import { ShareCard } from './ShareCard';
-import { ACHIEVEMENTS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
-import type { Cell } from './types';
+import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
+import type { Cell, Difficulty } from './types';
 import { useSnakeGame } from './useSnakeGame';
 
 function isSameCell(a: Cell, b: Cell) {
@@ -16,6 +16,8 @@ function isSameCell(a: Cell, b: Cell) {
 
 export function SnakeGame() {
   const {
+    bonusFood,
+    difficulty,
     food,
     highScore,
     isGameOver,
@@ -25,6 +27,7 @@ export function SnakeGame() {
     resetGame,
     score,
     selectedSkin,
+    setDifficulty,
     setSkin,
     snake,
     turnSnake,
@@ -74,6 +77,7 @@ export function SnakeGame() {
       const key = `${x}-${y}`;
       const isHead = isSameCell(snake[0], { x, y });
       const isFood = isSameCell(food, { x, y });
+      const isBonusFood = bonusFood ? isSameCell(bonusFood, { x, y }) : false;
       const isSnake = snakeCells.has(key);
 
       return (
@@ -82,14 +86,14 @@ export function SnakeGame() {
           style={{
             aspectRatio: '1 / 1',
             borderRadius: 10,
-            background: isFood
+            background: isFood || isBonusFood
               ? 'radial-gradient(circle at 30% 30%, #fde68a, var(--food-color))'
               : isHead
                 ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-head) 30%, white), var(--snake-head))'
                 : isSnake
                   ? 'linear-gradient(135deg, color-mix(in srgb, var(--snake-body) 45%, white), var(--snake-body))'
                   : 'rgba(255,255,255,0.08)',
-            boxShadow: isFood
+            boxShadow: isFood || isBonusFood
               ? '0 0 20px color-mix(in srgb, var(--food-color) 45%, transparent)'
               : 'none',
             transition: 'background 0.12s ease-out, transform 0.12s ease-out',
@@ -98,7 +102,7 @@ export function SnakeGame() {
         />
       );
     });
-  }, [food, snake]);
+  }, [bonusFood, food, snake]);
 
   return (
     <>
@@ -149,6 +153,49 @@ export function SnakeGame() {
           </div>
 
           <div style={{ display: 'grid', gap: 12 }}>
+            {/* Difficulty selector */}
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>
+                难度
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(Object.keys(DIFFICULTY_SETTINGS) as Difficulty[]).map((d) => {
+                  const setting = DIFFICULTY_SETTINGS[d];
+                  const isActive = d === difficulty;
+
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setDifficulty(d)}
+                      style={{
+                        appearance: 'none',
+                        border: 'none',
+                        borderRadius: 12,
+                        padding: '8px 16px',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: isActive
+                          ? 'linear-gradient(135deg, #86efac, #22c55e)'
+                          : 'rgba(30, 41, 59, 0.9)',
+                        color: isActive ? '#052e16' : '#94a3b8',
+                        borderWidth: 1,
+                        borderStyle: 'solid',
+                        borderColor: isActive
+                          ? '#22c55e'
+                          : 'rgba(148, 163, 184, 0.26)',
+                        transition: 'all 0.15s ease-out',
+                      }}
+                    >
+                      {setting.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div
               style={{
                 display: 'grid',

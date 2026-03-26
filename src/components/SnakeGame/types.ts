@@ -32,6 +32,21 @@ export const SKIN_STORAGE_KEY = 'snake_skin';
 
 export type SkinId = 'default' | 'neon' | 'pixel' | 'candy' | 'mario';
 
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export type DifficultySetting = {
+  tickMs: number;
+  foodCount: number;
+  label: string;
+  labelEn: string;
+};
+
+export const DIFFICULTY_SETTINGS: Record<Difficulty, DifficultySetting> = {
+  easy: { tickMs: 200, foodCount: 2, label: '简单', labelEn: 'Easy' },
+  normal: { tickMs: 120, foodCount: 1, label: '普通', labelEn: 'Normal' },
+  hard: { tickMs: 70, foodCount: 1, label: '困难', labelEn: 'Hard' },
+};
+
 export type ShareCardProps = {
   score: number;
   skinId: SkinId;
@@ -161,6 +176,7 @@ export const ACHIEVEMENTS: Array<{
 export type GameState = {
   snake: Cell[];
   food: Food;
+  bonusFood?: Food;
   direction: Direction;
   queuedDirection: Direction;
   score: number;

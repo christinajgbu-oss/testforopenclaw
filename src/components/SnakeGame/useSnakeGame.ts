@@ -19,18 +19,21 @@ import {
 import { randomFoodPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
+  DIFFICULTY_SETTINGS,
+  GRID_SIZE,
   INITIAL_DIRECTION,
   INITIAL_SNAKE,
   OPPOSITE_DIRECTION,
   SKINS,
   SKIN_STORAGE_KEY,
-  TICK_MS,
   isSkinUnlocked,
 } from './types';
 import type {
   AchievementMeta,
   AchievementStore,
+  Difficulty,
   Direction,
+  Food,
   GameState,
   SkinId,
 } from './types';
@@ -262,12 +265,38 @@ export function getSnakeGameFeedback(
 export function createInitialGameState(
   storage: StorageLike | null = getStorage(),
   getFoodPosition: typeof randomFoodPosition = randomFoodPosition,
+  difficulty: Difficulty = 'normal',
 ): GameState {
   const highScore = readHighScore(storage);
+  const primaryFood = getFoodPosition(INITIAL_SNAKE);
+
+  // For easy mode, generate a second food that avoids the primary food and snake
+  const bonusFood =
+    difficulty === 'easy'
+      ? (() => {
+          const avoidSet = new Set([
+            ...INITIAL_SNAKE.map((s) => `${s.x}-${s.y}`),
+            `${primaryFood.x}-${primaryFood.y}`,
+          ]);
+          const options: Food[] = [];
+          for (let y = 0; y < GRID_SIZE; y += 1) {
+            for (let x = 0; x < GRID_SIZE; x += 1) {
+              const key = `${x}-${y}`;
+              if (!avoidSet.has(key)) {
+                options.push({ x, y });
+              }
+            }
+          }
+          return (
+            options[Math.floor(Math.random() * options.length)] ?? { x: 0, y: 0 }
+          );
+        })()
+      : undefined;
 
   return {
     snake: INITIAL_SNAKE,
-    food: getFoodPosition(INITIAL_SNAKE),
+    food: primaryFood,
+    bonusFood,
     direction: INITIAL_DIRECTION,
     queuedDirection: INITIAL_DIRECTION,
     score: 0,
@@ -297,6 +326,7 @@ export function syncHighScoreOnGameOver(
 const SERVER_INITIAL_STATE: GameState = {
   snake: INITIAL_SNAKE,
   food: { x: 12, y: 12 },
+  bonusFood: undefined,
   direction: INITIAL_DIRECTION,
   queuedDirection: INITIAL_DIRECTION,
   score: 0,
@@ -309,6 +339,7 @@ export function useSnakeGame() {
   const [gameState, setGameState] = useState<GameState>(SERVER_INITIAL_STATE);
   const [achievements, setAchievements] = useState<AchievementStore>({});
   const [selectedSkin, setSelectedSkin] = useState<SkinId>('default');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
@@ -351,7 +382,7 @@ export function useSnakeGame() {
   // Randomize food position after mount (client only) to avoid SSR mismatch.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setGameState(createInitialGameState());
+      setGameState(createInitialGameState(getStorage(), randomFoodPosition, difficulty));
       const storedAchievements = readAchievements();
       achievementsRef.current = storedAchievements;
       setAchievements(storedAchievements);
@@ -365,6 +396,7 @@ export function useSnakeGame() {
     return () => {
       window.clearTimeout(timer);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetGame = useCallback(() => {
@@ -373,14 +405,14 @@ export function useSnakeGame() {
         playNewRecord();
       }
 
-      return createInitialGameState();
+      return createInitialGameState(getStorage(), randomFoodPosition, difficulty);
     });
     const nextMeta = createInitialAchievementMeta();
     achievementMetaRef.current = nextMeta;
     setAchievementMeta(nextMeta);
     gameStartTimeRef.current = Date.now();
     setDurationSeconds(0);
-  }, []);
+  }, [difficulty]);
 
   const turnSnake = useCallback((nextDirection: Direction) => {
     setGameState((currentState) => {
@@ -481,18 +513,20 @@ export function useSnakeGame() {
 
     const timer = window.setInterval(() => {
       tick();
-    }, TICK_MS);
+    }, DIFFICULTY_SETTINGS[difficulty].tickMs);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [gameState.isGameOver]);
+  }, [gameState.isGameOver, difficulty]);
 
   return {
     ...gameState,
     achievements,
     durationSeconds,
     selectedSkin,
+    difficulty,
+    setDifficulty,
     resetGame,
     setSkin,
     turnSnake,
