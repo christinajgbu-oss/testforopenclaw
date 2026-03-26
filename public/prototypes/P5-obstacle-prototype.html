@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>障碍物模式 · 原型</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      gap: 28px;
+    }
+    h1 { font-size: 20px; color: #00cc44; }
+    .label { color: #888; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+
+    /* 难度切换器 */
+    .difficulty-tabs {
+      display: flex;
+      gap: 8px;
+    }
+    .tab {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.6);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .tab.active {
+      border-color: #00cc44;
+      color: #00cc44;
+      background: rgba(0,204,68,0.1);
+    }
+
+    /* 障碍物模式开关 */
+    .mode-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .toggle-switch {
+      width: 44px;
+      height: 24px;
+      background: #333;
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch.on { background: #00cc44; }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: left 0.2s;
+    }
+    .toggle-switch.on::after { left: 23px; }
+
+    /* 棋盘 */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(20, 24px);
+      grid-template-rows: repeat(20, 24px);
+      gap: 1px;
+      background: #1a1a1a;
+      border: 2px solid #00cc44;
+      padding: 2px;
+    }
+    .cell {
+      background: #0a1a0a;
+      position: relative;
+    }
+    .cell.snake-head { background: #00cc44; border-radius: 3px; }
+    .cell.snake-body { background: #009933; }
+    .cell.food { background: transparent; }
+    .cell.food::after { content:'🍎'; font-size:14px; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+    .cell.obstacle { background: #555; border-radius: 3px; box-shadow: inset 0 0 4px rgba(0,0,0,0.5); }
+    .cell.prop { font-size: 14px; display:flex; align-items:center; justify-content:center; animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    /* 说明 */
+    .info-row {
+      display: flex;
+      gap: 24px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+    }
+    .info-row span { display: flex; align-items: center; gap: 4px; }
+    .board-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+    .legend-dot.snake { background: #00cc44; }
+    .legend-dot.obstacle { background: #555; }
+    .legend-dot.food { background: transparent; font-size: 10px; }
+    .legend-dot.prop { background: rgba(255,255,255,0.1); }
+
+    /* 障碍物说明 */
+    .obstacle-info {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 16px 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      text-align: center;
+    }
+    .obs-level { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+    .obs-count { font-size: 22px; font-weight: 700; color: #00cc44; }
+    .obs-desc { font-size: 11px; color: rgba(255,255,255,0.3); }
+  </style>
+</head>
+<body>
+
+  <p class="label">P5 · 障碍物模式 · 视觉原型</p>
+  <h1>障碍物模式</h1>
+
+  <!-- 难度切换 + 障碍物开关 -->
+  <div class="mode-row">
+    <div class="difficulty-tabs">
+      <div class="tab">简单</div>
+      <div class="tab active">普通</div>
+      <div class="tab">困难</div>
+    </div>
+    <div class="toggle">
+      <span>障碍物模式</span>
+      <div class="toggle-switch on" id="toggle"></div>
+    </div>
+  </div>
+
+  <!-- 障碍物信息 -->
+  <div class="obstacle-info">
+    <div>
+      <div class="obs-level">简单</div>
+      <div class="obs-count">5</div>
+      <div class="obs-desc">障碍物数量</div>
+    </div>
+    <div>
+      <div class="obs-level">普通</div>
+      <div class="obs-count">10</div>
+      <div class="obs-desc">障碍物数量</div>
+    </div>
+    <div>
+      <div class="obs-level">困难</div>
+      <div class="obs-count">15</div>
+      <div class="obs-desc">障碍物数量</div>
+    </div>
+  </div>
+
+  <!-- 棋盘示意（普通难度 + 10个障碍物） -->
+  <div class="board" id="board"></div>
+
+  <!-- 图例 -->
+  <div class="board-legend">
+    <div class="legend-item"><div class="legend-dot snake"></div> 蛇头</div>
+    <div class="legend-item"><div class="legend-dot obstacle"></div> 障碍物</div>
+    <div class="legend-item"><div class="legend-dot food">🍎</div> 食物</div>
+    <div class="legend-item"><div class="legend-dot prop">⚡</div> 道具</div>
+  </div>
+
+  <div class="info-row">
+    <span>🧱 障碍物撞之即死</span>
+    <span>⚡ 道具仍可正常出现</span>
+    <span>🔀 每局障碍物位置随机</span>
+  </div>
+
+  <script>
+    const BOARD_SIZE = 20;
+    const board = document.getElementById('board');
+
+    // 障碍物位置（固定示例）
+    const obstacles = [
+      [3,3],[3,16],[7,7],[7,12],
+      [11,5],[11,15],[15,9],[15,14],
+      [18,3],[18,17]
+    ];
+
+    // 蛇位置（示例）
+    const snake = [[5,5],[5,6],[5,7],[5,8]];
+
+    // 食物位置
+    const food = [12, 15];
+
+    // 道具位置（可选显示）
+    const prop = [10, 10];
+
+    let cells = [];
+
+    function render() {
+      board.innerHTML = '';
+      cells = [];
+      for (let r = 1; r <= BOARD_SIZE; r++) {
+        for (let c = 1; c <= BOARD_SIZE; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+
+          // 蛇头
+          if (r === snake[0][0] && c === snake[0][1]) cell.classList.add('snake-head');
+          // 蛇身
+          else if (snake.slice(1).some(([sr,sc]) => sr===r && sc===c)) cell.classList.add('snake-body');
+          // 食物
+          else if (r === food[0] && c === food[1]) cell.classList.add('food');
+          // 障碍物
+          else if (obstacles.some(([or,oc]) => or===r && oc===c)) cell.classList.add('obstacle');
+          // 道具
+          else if (r === prop[0] && c === prop[1]) { cell.classList.add('prop'); cell.textContent = '⚡'; }
+
+          board.appendChild(cell);
+          cells.push(cell);
+        }
+      }
+    }
+
+    render();
+  </script>
+
+</body>
+</html>
