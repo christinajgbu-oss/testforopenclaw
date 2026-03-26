@@ -57,6 +57,9 @@ function createGameState(overrides: Partial<GameState> = {}): GameState {
     highScore: overrides.highScore ?? 12,
     previousHighScore: overrides.previousHighScore ?? 12,
     isGameOver: overrides.isGameOver ?? false,
+    gameStatus: 'running',
+    prop: null,
+    activeProps: {},
   };
 }
 

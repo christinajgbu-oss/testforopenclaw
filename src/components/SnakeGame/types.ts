@@ -32,6 +32,78 @@ export const SKIN_STORAGE_KEY = 'snake_skin';
 
 export type SkinId = 'default' | 'neon' | 'pixel' | 'candy' | 'mario';
 
+export type PropId =
+  | 'speed_up'
+  | 'speed_down'
+  | 'shield'
+  | 'ghost'
+  | 'double_score'
+  | 'shrink';
+
+export type PropType = {
+  id: PropId;
+  name: string;
+  nameEn: string;
+  icon: string;
+  description: string;
+};
+
+export const PROPS: PropType[] = [
+  {
+    id: 'speed_up',
+    name: '加速',
+    nameEn: 'Speed Up',
+    icon: '⚡',
+    description: '速度 +50%，持续 5 秒',
+  },
+  {
+    id: 'speed_down',
+    name: '减速',
+    nameEn: 'Slow Down',
+    icon: '🐌',
+    description: '速度 -50%，持续 5 秒',
+  },
+  {
+    id: 'shield',
+    name: '护盾',
+    nameEn: 'Shield',
+    icon: '🛡️',
+    description: '下次撞墙/身不死',
+  },
+  {
+    id: 'ghost',
+    name: '幽灵',
+    nameEn: 'Ghost',
+    icon: '👻',
+    description: '穿墙/穿身，持续 5 秒',
+  },
+  {
+    id: 'double_score',
+    name: '双倍得分',
+    nameEn: 'Double Score',
+    icon: '🎯',
+    description: '吃食物得 2 分，持续 10 秒',
+  },
+  {
+    id: 'shrink',
+    name: '缩短',
+    nameEn: 'Shrink',
+    icon: '✂️',
+    description: '蛇身缩短 3 节',
+  },
+];
+
+export type ActiveProp = {
+  expiresAt: number;
+};
+
+export type Prop = {
+  id: PropId;
+  x: number;
+  y: number;
+  expiresAt: number;
+};
+
 export type HistoryEntry = {
   id: string;
   score: number;
@@ -195,6 +267,8 @@ export type GameState = {
   previousHighScore: number;
   isGameOver: boolean;
   gameStatus: 'idle' | 'running' | 'gameover';
+  prop: Prop | null;
+  activeProps: Partial<Record<PropId, ActiveProp>>;
 };
 
 export const GRID_SIZE = 16;

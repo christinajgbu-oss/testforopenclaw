@@ -6,8 +6,8 @@ import type { CSSProperties } from 'react';
 import pageStyles from '@/app/page.module.css';
 
 import { ShareCard } from './ShareCard';
-import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
-import type { Cell, Difficulty } from './types';
+import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
+import type { Cell, Difficulty, Prop, PropId } from './types';
 import { useSnakeGame } from './useSnakeGame';
 
 function isSameCell(a: Cell, b: Cell) {
@@ -16,6 +16,7 @@ function isSameCell(a: Cell, b: Cell) {
 
 export function SnakeGame() {
   const {
+    activeProps,
     bonusFood,
     difficulty,
     food,
@@ -26,6 +27,7 @@ export function SnakeGame() {
     previousHighScore,
     achievements,
     durationSeconds = 0,
+    prop,
     resetGame,
     score,
     selectedSkin,
@@ -35,6 +37,12 @@ export function SnakeGame() {
     turnSnake,
   } = useSnakeGame();
   const [showHistory, setShowHistory] = useState(false);
+  const [activePropToasts, setActivePropToasts] = useState<
+    Array<{ id: PropId; name: string; icon: string }>
+  >([]);
+  const [propCountdowns, setPropCountdowns] = useState<
+    Partial<Record<PropId, number>>
+  >({});
   const [isWideLayout, setIsWideLayout] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const hasNewHighScore = isGameOver && highScore > previousHighScore;
@@ -71,6 +79,22 @@ export function SnakeGame() {
     section.style.setProperty('--board-bg', activeSkin.bgColor);
   }, [activeSkin]);
 
+  // Prop countdown timer (updates every second)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const newCountdowns: Partial<Record<PropId, number>> = {};
+      Object.entries(activeProps).forEach(([id, prop]) => {
+        if (prop && prop.expiresAt !== Infinity) {
+          const remaining = Math.max(0, Math.ceil((prop.expiresAt - now) / 1000));
+          newCountdowns[id as PropId] = remaining;
+        }
+      });
+      setPropCountdowns(newCountdowns);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeProps]);
+
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
 
@@ -82,6 +106,8 @@ export function SnakeGame() {
       const isFood = isSameCell(food, { x, y });
       const isBonusFood = bonusFood ? isSameCell(bonusFood, { x, y }) : false;
       const isSnake = snakeCells.has(key);
+      const isProp = prop ? isSameCell(prop, { x, y }) : false;
+      const propData = isProp ? PROPS.find((p) => p.id === prop!.id) : null;
 
       return (
         <div
@@ -98,17 +124,33 @@ export function SnakeGame() {
                   : 'rgba(255,255,255,0.08)',
             boxShadow: isFood || isBonusFood
               ? '0 0 20px color-mix(in srgb, var(--food-color) 45%, transparent)'
-              : 'none',
+              : isProp
+                ? '0 0 12px rgba(255,255,255,0.4)'
+                : 'none',
             transition: 'background 0.12s ease-out, transform 0.12s ease-out',
             transform: isHead ? 'scale(1.03)' : 'scale(1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: isProp ? 'propPulse 1s infinite' : undefined,
           }}
-        />
+        >
+          {isProp && propData && (
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{propData.icon}</span>
+          )}
+        </div>
       );
     });
-  }, [bonusFood, food, snake]);
+  }, [bonusFood, food, prop, snake]);
 
   return (
     <>
+      <style>{`
+        @keyframes propPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(0.9); }
+        }
+      `}</style>
       <section
         ref={sectionRef}
         style={{
@@ -414,6 +456,57 @@ export function SnakeGame() {
               </div>
             )}
           </div>
+
+          {/* Active props status bar */}
+          {Object.keys(activeProps).length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+              }}
+            >
+              {Object.entries(activeProps).map(([id, active]) => {
+                if (!active) return null;
+                const propDef = PROPS.find((p) => p.id === id);
+                if (!propDef) return null;
+                const remaining =
+                  active.expiresAt === Infinity
+                    ? null
+                    : Math.max(
+                        0,
+                        Math.ceil((active.expiresAt - Date.now()) / 1000),
+                      );
+
+                return (
+                  <div
+                    key={id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      background: 'rgba(30, 41, 59, 0.9)',
+                      border: '1px solid rgba(148, 163, 184, 0.22)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#e2e8f0',
+                    }}
+                  >
+                    <span>{propDef.icon}</span>
+                    <span>{propDef.name}</span>
+                    {remaining !== null && (
+                      <span style={{ color: '#64748b', marginLeft: 2 }}>
+                        {remaining}s
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div
             style={{

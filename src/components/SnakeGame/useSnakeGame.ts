@@ -16,7 +16,7 @@ import {
   playNewRecord,
   vibrate,
 } from './audio';
-import { randomFoodPosition } from './gridHelpers';
+import { randomFoodPosition, randomPropPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
   DIFFICULTY_SETTINGS,
@@ -24,6 +24,7 @@ import {
   INITIAL_DIRECTION,
   INITIAL_SNAKE,
   OPPOSITE_DIRECTION,
+  PROPS,
   SKINS,
   SKIN_STORAGE_KEY,
   isSkinUnlocked,
@@ -36,6 +37,8 @@ import type {
   Food,
   GameState,
   HistoryEntry,
+  PropId,
+  PropType,
   SkinId,
 } from './types';
 
@@ -339,6 +342,8 @@ export function createInitialGameState(
     previousHighScore: highScore,
     isGameOver: false,
     gameStatus: 'idle',
+    prop: null,
+    activeProps: {},
   };
 }
 
@@ -370,6 +375,8 @@ const SERVER_INITIAL_STATE: GameState = {
   previousHighScore: 0,
   isGameOver: false,
   gameStatus: 'idle',
+  prop: null,
+  activeProps: {},
 };
 
 export function useSnakeGame() {
@@ -386,6 +393,8 @@ export function useSnakeGame() {
   const achievementMetaRef = useRef(achievementMeta);
   const gameStartTimeRef = useRef<number>(Date.now());
   const previousIsGameOverRef = useRef(false);
+  const propSpawnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentPropsRef = useRef(gameState.activeProps);
 
   const applyAchievementUpdate = useCallback(
     (previousState: GameState, nextState: GameState) => {
@@ -585,19 +594,101 @@ export function useSnakeGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameOver]);
 
+  // Keep currentPropsRef in sync
+  useEffect(() => {
+    currentPropsRef.current = gameState.activeProps;
+  }, [gameState.activeProps]);
+
+  // Schedule next prop spawn
+  const schedulePropSpawn = useCallback((delayMs?: number) => {
+    if (propSpawnTimeoutRef.current) {
+      clearTimeout(propSpawnTimeoutRef.current);
+    }
+    const delay = delayMs ?? 15_000 + Math.random() * 5_000;
+    propSpawnTimeoutRef.current = setTimeout(() => {
+      setGameState((current) => {
+        if (current.gameStatus !== 'running' || current.prop !== null) {
+          return current;
+        }
+        const pos = randomPropPosition(
+          current.snake,
+          current.food,
+          current.bonusFood,
+          null,
+        );
+        if (!pos) return current;
+        const propType: PropType =
+          PROPS[Math.floor(Math.random() * PROPS.length)];
+        return {
+          ...current,
+          prop: {
+            id: propType.id,
+            x: pos.x,
+            y: pos.y,
+            expiresAt: Date.now() + 8_000,
+          },
+        };
+      });
+    }, delay);
+  }, []);
+
+  // Start prop spawn scheduling when game starts running
+  useEffect(() => {
+    if (gameState.gameStatus === 'running') {
+      // If no prop currently, schedule one
+      schedulePropSpawn();
+    } else {
+      if (propSpawnTimeoutRef.current) {
+        clearTimeout(propSpawnTimeoutRef.current);
+        propSpawnTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (propSpawnTimeoutRef.current) {
+        clearTimeout(propSpawnTimeoutRef.current);
+        propSpawnTimeoutRef.current = null;
+      }
+    };
+  }, [gameState.gameStatus, schedulePropSpawn]);
+
+  // Reschedule when prop is consumed (set to null) - spawn next after 15-20s
+  useEffect(() => {
+    if (gameState.prop === null && gameState.gameStatus === 'running') {
+      // Schedule next spawn
+      schedulePropSpawn();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.prop]);
+
+  // Calculate effective tick interval based on active props
+  const getEffectiveTickMs = useCallback(() => {
+    let ms = DIFFICULTY_SETTINGS[difficulty].tickMs;
+    const active = gameState.activeProps;
+    const now = Date.now();
+
+    if (active.speed_up?.expiresAt && active.speed_up.expiresAt > now) {
+      ms = Math.round(ms * 0.67);
+    }
+    if (active.speed_down?.expiresAt && active.speed_down.expiresAt > now) {
+      ms = Math.round(ms * 1.5);
+    }
+    return ms;
+  }, [difficulty, gameState.activeProps]);
+
   useEffect(() => {
     if (gameState.gameStatus !== 'running') {
       return;
     }
 
+    const effectiveMs = getEffectiveTickMs();
     const timer = window.setInterval(() => {
       tick();
-    }, DIFFICULTY_SETTINGS[difficulty].tickMs);
+    }, effectiveMs);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [gameState.gameStatus, difficulty]);
+  }, [gameState.gameStatus, difficulty, gameState.activeProps, getEffectiveTickMs]);
 
   return {
     ...gameState,
