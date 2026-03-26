@@ -21,6 +21,7 @@ export function SnakeGame() {
     food,
     gameStatus,
     highScore,
+    history,
     isGameOver,
     previousHighScore,
     achievements,
@@ -33,6 +34,7 @@ export function SnakeGame() {
     snake,
     turnSnake,
   } = useSnakeGame();
+  const [showHistory, setShowHistory] = useState(false);
   const [isWideLayout, setIsWideLayout] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const hasNewHighScore = isGameOver && highScore > previousHighScore;
@@ -272,6 +274,23 @@ export function SnakeGame() {
               重新开始
             </button>
 
+            <button
+              onClick={() => setShowHistory(true)}
+              style={{
+                appearance: 'none',
+                border: '1px solid rgba(148, 163, 184, 0.26)',
+                cursor: 'pointer',
+                borderRadius: 18,
+                padding: '14px 18px',
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#e2e8f0',
+                background: 'rgba(30, 41, 59, 0.9)',
+              }}
+            >
+              个人战绩
+            </button>
+
             <div style={{ display: 'grid', gap: 8, color: '#94a3b8', fontSize: 14 }}>
               <p>控制方式：↑ ↓ ← → / W A S D</p>
               <p>规则：每吃到一个食物得 1 分，速度固定，死亡后停止。</p>
@@ -476,7 +495,136 @@ export function SnakeGame() {
           />
         </div>
       ) : null}
+      {showHistory ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24,
+            background: 'rgba(15, 23, 42, 0.78)',
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(30, 41, 59, 0.96)',
+              border: '1px solid rgba(148, 163, 184, 0.22)',
+              borderRadius: 24,
+              padding: 32,
+              width: 'min(480px, 100%)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              display: 'grid',
+              gap: 24,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f8fafc', fontSize: 20, fontWeight: 700 }}>个人战绩</h2>
+              <button
+                onClick={() => setShowHistory(false)}
+                style={{
+                  appearance: 'none',
+                  border: '1px solid rgba(148, 163, 184, 0.26)',
+                  borderRadius: 12,
+                  padding: '8px 16px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#94a3b8',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                关闭
+              </button>
+            </div>
+
+            {/* Summary stats */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 12,
+              }}
+            >
+              <StatCard label="最高分" value={history[0]?.score ?? highScore} />
+              <StatCard label="总局数" value={history.length} />
+              <StatCard
+                label="平均分"
+                value={
+                  history.length > 0
+                    ? Math.round(history.reduce((sum, h) => sum + h.score, 0) / history.length)
+                    : 0
+                }
+              />
+              <StatCard label="成就解锁" value={`${Object.keys(achievements).length}/9`} />
+            </div>
+
+            {/* Recent games list */}
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>最近战绩</div>
+              {history.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: 14 }}>暂无记录，开始游戏吧！</p>
+              ) : (
+                history.slice(0, 10).map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      border: '1px solid rgba(148, 163, 184, 0.12)',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <span style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>
+                        {entry.score}
+                        <span style={{ color: '#64748b', fontSize: 12, marginLeft: 6 }}>
+                          分 · {DIFFICULTY_SETTINGS[entry.difficulty].label}
+                        </span>
+                      </span>
+                      <span style={{ color: '#64748b', fontSize: 12 }}>
+                        {new Date(entry.achievedAt).toLocaleDateString('zh-CN', {
+                          month: 'numeric',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                      🏆 {entry.achievementCount}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div
+      style={{
+        padding: '16px',
+        borderRadius: 16,
+        background: 'rgba(15, 23, 42, 0.8)',
+        border: '1px solid rgba(148, 163, 184, 0.12)',
+        display: 'grid',
+        gap: 4,
+      }}
+    >
+      <div style={{ color: '#64748b', fontSize: 12 }}>{label}</div>
+      <div style={{ color: '#f8fafc', fontSize: 22, fontWeight: 700 }}>{value}</div>
+    </div>
   );
 }
 

@@ -35,11 +35,13 @@ import type {
   Direction,
   Food,
   GameState,
+  HistoryEntry,
   SkinId,
 } from './types';
 
 const HIGH_SCORE_STORAGE_KEY = 'snake_highscore';
 export const ACHIEVEMENT_STORAGE_KEY = 'snake_achievements';
+export const HISTORY_STORAGE_KEY = 'snake_history';
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -136,6 +138,39 @@ export function writeAchievements(
   storage: StorageLike | null = getStorage(),
 ) {
   storage?.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(achievements));
+}
+
+export function readHistory(
+  storage: StorageLike | null = getStorage(),
+): HistoryEntry[] {
+  const rawValue = storage?.getItem(HISTORY_STORAGE_KEY);
+
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown[];
+
+    return parsed.filter(
+      (entry): entry is HistoryEntry =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as HistoryEntry).score === 'number' &&
+        typeof (entry as HistoryEntry).achievedAt === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function writeHistory(
+  entry: HistoryEntry,
+  storage: StorageLike | null = getStorage(),
+) {
+  const existing = readHistory(storage);
+  const next = [entry, ...existing].slice(0, 50); // keep latest 50
+  storage?.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
 }
 
 type AchievementUpdateArgs = {
@@ -343,6 +378,7 @@ export function useSnakeGame() {
   const [selectedSkin, setSelectedSkin] = useState<SkinId>('default');
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [durationSeconds, setDurationSeconds] = useState(0);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
@@ -389,6 +425,7 @@ export function useSnakeGame() {
       achievementsRef.current = storedAchievements;
       setAchievements(storedAchievements);
       setSelectedSkin(readSelectedSkin(getStorage(), storedAchievements));
+      setHistory(readHistory());
       achievementMetaRef.current = createInitialAchievementMeta();
       setAchievementMeta(createInitialAchievementMeta());
       gameStartTimeRef.current = Date.now();
@@ -522,16 +559,30 @@ export function useSnakeGame() {
 
   useEffect(() => {
     if (!previousIsGameOverRef.current && gameState.isGameOver) {
-      setDurationSeconds(
-        Math.floor((Date.now() - gameStartTimeRef.current) / 1_000),
+      const duration = Math.floor(
+        (Date.now() - gameStartTimeRef.current) / 1_000,
       );
+      setDurationSeconds(duration);
       // Transition to gameover status
       setGameState((current) =>
         current.isGameOver ? current : { ...current, gameStatus: 'gameover' },
       );
+      // Write history entry
+      const entry: HistoryEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        score: gameState.score,
+        achievedAt: Date.now(),
+        skinId: selectedSkin,
+        achievementCount: Object.keys(achievements).length,
+        durationSeconds: duration,
+        difficulty,
+      };
+      writeHistory(entry);
+      setHistory(readHistory());
     }
 
     previousIsGameOverRef.current = gameState.isGameOver;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameOver]);
 
   useEffect(() => {
@@ -551,6 +602,7 @@ export function useSnakeGame() {
   return {
     ...gameState,
     achievements,
+    history,
     durationSeconds,
     selectedSkin,
     difficulty,

@@ -32,6 +32,16 @@ export const SKIN_STORAGE_KEY = 'snake_skin';
 
 export type SkinId = 'default' | 'neon' | 'pixel' | 'candy' | 'mario';
 
+export type HistoryEntry = {
+  id: string;
+  score: number;
+  achievedAt: number;
+  skinId: SkinId;
+  achievementCount: number;
+  durationSeconds: number;
+  difficulty: Difficulty;
+};
+
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export type DifficultySetting = {
