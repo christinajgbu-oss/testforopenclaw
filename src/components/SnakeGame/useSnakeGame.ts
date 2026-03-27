@@ -754,6 +754,9 @@ export function createInitialGameState(
     activeProps: {},
     elapsedMs: 0,
     nextPropSpawnAt: 15_000 + random() * 5_000,
+    tick: 0,
+    speedLevel: 1,
+    speedUpsRemaining: 0,
   };
 }
 
@@ -862,6 +865,9 @@ const SERVER_INITIAL_STATE: GameState = {
   activeProps: {},
   elapsedMs: 0,
   nextPropSpawnAt: null,
+  tick: 0,
+  speedLevel: 1,
+  speedUpsRemaining: 0,
 };
 
 export function useSnakeGame() {
@@ -1016,17 +1022,20 @@ export function useSnakeGame() {
       const initialState: GameState = {
         snake: INITIAL_SNAKE,
         direction: INITIAL_DIRECTION,
+        queuedDirection: INITIAL_DIRECTION,
         food: primaryFood,
         bonusFood: bonusFood ?? undefined,
         score: 0,
         highScore: 0,
-        gameStatus: 'playing',
+        previousHighScore: 0,
+        isGameOver: false,
+        gameStatus: 'running',
         tick: 0,
-        elapsedMs: null,
+        elapsedMs: undefined,
         obstacles: level.obstaclePositions,
         prop: null,
         nextPropSpawnAt: null,
-        activeProps: [],
+        activeProps: {},
         speedLevel: 1,
         speedUpsRemaining: 0,
       };

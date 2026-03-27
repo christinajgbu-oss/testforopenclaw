@@ -340,6 +340,9 @@ export type GameState = {
   activeProps: Partial<Record<PropId, ActiveProp>>;
   elapsedMs?: number;
   nextPropSpawnAt?: number | null;
+  tick: number;
+  speedLevel: number;
+  speedUpsRemaining: number;
 };
 
 export const GRID_SIZE = 16;
