@@ -112,6 +112,26 @@ export type HistoryEntry = {
   achievementCount: number;
   durationSeconds: number;
   difficulty: Difficulty;
+  replayId?: string;
+};
+
+export type ReplayInput = {
+  tick: number;
+  direction: Direction;
+};
+
+export type ReplayData = {
+  id: string;
+  savedAt: number;
+  seed: number;
+  difficulty: Difficulty;
+  skinId: SkinId;
+  obstacleMode: boolean;
+  obstacleDifficulty?: ObstacleDifficulty;
+  durationSeconds: number;
+  finalScore: number;
+  finalAchievementIds: AchievementId[];
+  inputs: ReplayInput[];
 };
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -284,6 +304,8 @@ export type GameState = {
   gameStatus: 'idle' | 'running' | 'gameover';
   prop: Prop | null;
   activeProps: Partial<Record<PropId, ActiveProp>>;
+  elapsedMs?: number;
+  nextPropSpawnAt?: number | null;
 };
 
 export const GRID_SIZE = 16;

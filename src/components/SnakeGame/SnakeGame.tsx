@@ -5,16 +5,25 @@ import type { CSSProperties } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
+import { ReplayPlayer } from './ReplayPlayer';
 import { ShareCard } from './ShareCard';
 import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, OBSTACLE_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
-import type { Cell, Difficulty, ObstacleDifficulty, Prop, PropId } from './types';
-import { useSnakeGame } from './useSnakeGame';
+import type { Cell, Difficulty, ObstacleDifficulty, PropId, ReplayData } from './types';
+import { encodeReplayData, useSnakeGame, writeReplay } from './useSnakeGame';
 
 function isSameCell(a: Cell, b: Cell) {
   return a.x === b.x && a.y === b.y;
 }
 
-export function SnakeGame() {
+export function SnakeGame({
+  replayData = null,
+}: {
+  replayData?: ReplayData | null;
+}) {
+  if (replayData) {
+    return <ReplayPlayer replayData={replayData} />;
+  }
+
   const {
     activeProps,
     bonusFood,
@@ -29,7 +38,9 @@ export function SnakeGame() {
     previousHighScore,
     achievements,
     durationSeconds = 0,
+    elapsedMs = 0,
     prop,
+    latestReplay,
     resetGame,
     score,
     selectedSkin,
@@ -40,6 +51,9 @@ export function SnakeGame() {
     turnSnake,
   } = useSnakeGame();
   const [showHistory, setShowHistory] = useState(false);
+  const [activeReplay, setActiveReplay] = useState<ReplayData | null>(null);
+  const [replaySaveChoice, setReplaySaveChoice] = useState<'pending' | 'saved' | 'skipped'>('pending');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activePropToasts, setActivePropToasts] = useState<
     Array<{ id: PropId; name: string; icon: string }>
   >([]);
@@ -55,6 +69,39 @@ export function SnakeGame() {
   )
     .slice(0, 3)
     .map((achievement) => achievement.id);
+
+  useEffect(() => {
+    if (!isGameOver) {
+      setReplaySaveChoice('pending');
+      setActiveReplay(null);
+    }
+  }, [isGameOver]);
+
+  useEffect(() => {
+    const handleReplayExit = () => {
+      setActiveReplay(null);
+    };
+
+    window.addEventListener('snake-replay-exit', handleReplayExit as EventListener);
+
+    return () => {
+      window.removeEventListener('snake-replay-exit', handleReplayExit as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 2_000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [toastMessage]);
 
   useEffect(() => {
     const updateLayout = () => {
@@ -85,7 +132,7 @@ export function SnakeGame() {
   // Prop countdown timer (updates every second)
   useEffect(() => {
     const interval = setInterval(() => {
-      const now = Date.now();
+      const now = elapsedMs;
       const newCountdowns: Partial<Record<PropId, number>> = {};
       Object.entries(activeProps).forEach(([id, prop]) => {
         if (prop && prop.expiresAt !== Infinity) {
@@ -96,7 +143,36 @@ export function SnakeGame() {
       setPropCountdowns(newCountdowns);
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeProps]);
+  }, [activeProps, elapsedMs]);
+
+  const handleSaveReplay = () => {
+    if (!latestReplay) {
+      return;
+    }
+
+    writeReplay(latestReplay);
+    setReplaySaveChoice('saved');
+  };
+
+  const handleShareReplay = async () => {
+    if (!latestReplay) {
+      return;
+    }
+
+    const encodedReplay = encodeReplayData(latestReplay);
+    const shareUrl = `${window.location.origin}${window.location.pathname}?replay=${encodedReplay}`;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setToastMessage('链接已复制');
+    } catch {
+      setToastMessage('复制失败');
+    }
+  };
+
+  if (activeReplay) {
+    return <ReplayPlayer replayData={activeReplay} />;
+  }
 
   const board = useMemo(() => {
     const snakeCells = new Set(snake.map((segment) => `${segment.x}-${segment.y}`));
@@ -550,7 +626,7 @@ export function SnakeGame() {
                     ? null
                     : Math.max(
                         0,
-                        Math.ceil((active.expiresAt - Date.now()) / 1000),
+                        Math.ceil((active.expiresAt - elapsedMs) / 1000),
                       );
 
                 return (
@@ -653,14 +729,70 @@ export function SnakeGame() {
             zIndex: 50,
           }}
         >
-          <ShareCard
-            score={score}
-            skinId={selectedSkin}
-            achievementIds={unlockedAchievementIds}
-            durationSeconds={durationSeconds}
-            onClose={resetGame}
-            onRestart={resetGame}
-          />
+          <div style={{ display: 'grid', gap: 16, width: 'min(560px, 100%)' }}>
+            <ShareCard
+              score={score}
+              skinId={selectedSkin}
+              achievementIds={unlockedAchievementIds}
+              durationSeconds={durationSeconds}
+              onClose={resetGame}
+              onRestart={resetGame}
+            />
+            {latestReplay ? (
+              <div
+                style={{
+                  padding: 20,
+                  borderRadius: 24,
+                  background: 'rgba(30, 41, 59, 0.96)',
+                  border: '1px solid rgba(148, 163, 184, 0.22)',
+                  display: 'grid',
+                  gap: 14,
+                }}
+              >
+                <div style={{ color: '#f8fafc', fontSize: 18, fontWeight: 700 }}>
+                  保存回放？
+                </div>
+                {replaySaveChoice === 'pending' ? (
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveReplay}
+                      style={overlayButtonStyle(true)}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReplaySaveChoice('skipped')}
+                      style={overlayButtonStyle(false)}
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ color: '#cbd5e1', fontSize: 14 }}>
+                    {replaySaveChoice === 'saved' ? '回放已保存到本地。' : '已跳过保存。'}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveReplay(latestReplay)}
+                    style={overlayButtonStyle(true)}
+                  >
+                    回放
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShareReplay}
+                    style={overlayButtonStyle(false)}
+                  >
+                    分享
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {showHistory ? (
@@ -774,6 +906,25 @@ export function SnakeGame() {
           </div>
         </div>
       ) : null}
+      {toastMessage ? (
+        <div
+          style={{
+            position: 'fixed',
+            right: 20,
+            bottom: 20,
+            padding: '10px 14px',
+            borderRadius: 14,
+            background: 'rgba(15, 23, 42, 0.92)',
+            border: '1px solid rgba(148, 163, 184, 0.22)',
+            color: '#f8fafc',
+            fontSize: 14,
+            fontWeight: 600,
+            zIndex: 60,
+          }}
+        >
+          {toastMessage}
+        </div>
+      ) : null}
     </>
   );
 }
@@ -827,4 +978,20 @@ function ControlButton({
       {label}
     </button>
   );
+}
+
+function overlayButtonStyle(isPrimary: boolean): CSSProperties {
+  return {
+    appearance: 'none',
+    border: isPrimary ? 0 : '1px solid rgba(148, 163, 184, 0.26)',
+    borderRadius: 16,
+    padding: '10px 16px',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    background: isPrimary
+      ? 'linear-gradient(135deg, #86efac, #22c55e)'
+      : 'rgba(30, 41, 59, 0.9)',
+    color: isPrimary ? '#052e16' : '#f8fafc',
+  };
 }

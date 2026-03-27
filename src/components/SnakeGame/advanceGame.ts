@@ -1,12 +1,22 @@
-import { isColliding, isObstacle, randomFoodPosition } from './gridHelpers';
+import { isColliding, isObstacle, randomFoodPosition, randomPropPosition } from './gridHelpers';
 import {
   DIRECTION_OFFSETS,
   GRID_SIZE,
   OPPOSITE_DIRECTION,
+  PROPS,
 } from './types';
 import type { Cell, Food, GameState, PropId } from './types';
 
-type GetFoodPosition = (snake: GameState['snake']) => Food;
+type GetFoodPosition = (
+  snake: GameState['snake'],
+  gridSize: number | undefined,
+  blockedCells: Cell[],
+) => Food;
+
+type AdvanceGameOptions = {
+  random?: () => number;
+  tickMs?: number;
+};
 
 function resolveDirection(state: GameState) {
   return state.queuedDirection === OPPOSITE_DIRECTION[state.direction]
@@ -24,19 +34,14 @@ function getSafeFoodPosition(
   extraAvoid: Food[] = [],
   obstacles: Cell[] = [],
 ) {
-  if (extraAvoid.length === 0 && obstacles.length === 0) {
-    return getFoodPosition(snake);
-  }
-
-  return randomFoodPosition(snake, GRID_SIZE, [...extraAvoid, ...obstacles]);
+  return getFoodPosition(snake, undefined, [...extraAvoid, ...obstacles]);
 }
 
 function applyPropEffect(
   propId: PropId,
   state: GameState,
+  now: number,
 ): Partial<GameState> {
-  const now = Date.now();
-
   switch (propId) {
     case 'speed_up':
     case 'speed_down':
@@ -70,21 +75,61 @@ function applyPropEffect(
   }
 }
 
+function filterExpiredActiveProps(
+  activeProps: GameState['activeProps'],
+  now: number,
+) {
+  return Object.entries(activeProps).reduce(
+    (acc, [id, prop]) => {
+      if (prop && prop.expiresAt !== Infinity && prop.expiresAt <= now) {
+        return acc;
+      }
+
+      // eslint-disable-next-line no-param-reassign
+      acc[id as PropId] = prop;
+      return acc;
+    },
+    {} as Partial<Record<PropId, { expiresAt: number } | undefined>>,
+  );
+}
+
+function getPropSpawnDelay(random: () => number) {
+  return 15_000 + random() * 5_000;
+}
+
 export function advanceGame(
   state: GameState,
-  getFoodPosition: GetFoodPosition = randomFoodPosition,
+  getFoodPosition: GetFoodPosition = (snake, gridSize, blockedCells) =>
+    randomFoodPosition(snake, gridSize ?? GRID_SIZE, blockedCells ?? []),
+  options: AdvanceGameOptions = {},
 ): GameState {
   if (state.isGameOver || state.gameStatus !== 'running') {
     return state;
   }
 
+  const random = options.random ?? Math.random;
+  const isDeterministicTick = typeof state.elapsedMs === 'number';
+  const frameTime = state.elapsedMs != null
+    ? state.elapsedMs + (options.tickMs ?? 0)
+    : Date.now();
   const direction = resolveDirection(state);
   const offset = DIRECTION_OFFSETS[direction];
+  const activePropsAtFrame = filterExpiredActiveProps(state.activeProps, frameTime);
+  const propExpired =
+    Boolean(state.prop) &&
+    isDeterministicTick &&
+    typeof state.prop?.expiresAt === 'number' &&
+    state.prop.expiresAt <= frameTime;
+  const currentProp = propExpired ? null : state.prop;
+  const nextScheduledPropAt =
+    propExpired && isDeterministicTick
+      ? frameTime + getPropSpawnDelay(random)
+      : state.nextPropSpawnAt ?? null;
 
   // Ghost mode: allow wrapping to opposite side
   const ghostActive =
-    state.activeProps.ghost?.expiresAt &&
-    state.activeProps.ghost.expiresAt > Date.now();
+    activePropsAtFrame.ghost?.expiresAt &&
+    activePropsAtFrame.ghost.expiresAt > frameTime;
 
   let nextHead: { x: number; y: number };
 
@@ -117,25 +162,32 @@ export function advanceGame(
 
   // Shield check
   const shieldActive =
-    state.activeProps.shield?.expiresAt === Infinity;
+    activePropsAtFrame.shield?.expiresAt === Infinity;
 
   // Obstacle collision or wall/self collision
   if (hitsObstacle || (wouldCollide && !ghostActive)) {
     if (shieldActive) {
       // Consume shield instead of dying
-      const { shield: _shield, ...restActiveProps } = state.activeProps;
+      const { shield: _shield, ...restActiveProps } = activePropsAtFrame;
       return {
         ...state,
+        prop: currentProp,
         activeProps: restActiveProps,
         direction,
         queuedDirection: direction,
+        elapsedMs: isDeterministicTick ? frameTime : state.elapsedMs,
+        nextPropSpawnAt: nextScheduledPropAt,
       };
     }
     return {
       ...state,
+      prop: currentProp,
+      activeProps: activePropsAtFrame,
       isGameOver: true,
       direction,
       queuedDirection: direction,
+      elapsedMs: isDeterministicTick ? frameTime : state.elapsedMs,
+      nextPropSpawnAt: nextScheduledPropAt,
     };
   }
 
@@ -161,19 +213,23 @@ export function advanceGame(
 
   // Score: double if double_score active
   const doubleScoreActive =
-    state.activeProps.double_score?.expiresAt &&
-    state.activeProps.double_score.expiresAt > Date.now();
+    activePropsAtFrame.double_score?.expiresAt &&
+    activePropsAtFrame.double_score.expiresAt > frameTime;
   const scoreGain = ateFood ? (doubleScoreActive ? 2 : 1) : 0;
 
   // Prop: check if snake ate it
-  let nextProp = state.prop;
-  let nextActiveProps = state.activeProps;
+  let nextProp = currentProp;
+  let nextActiveProps = activePropsAtFrame;
+  let nextPropSpawnAt = nextScheduledPropAt;
 
-  if (state.prop && isSameCell(nextHead, state.prop)) {
+  if (currentProp && isSameCell(nextHead, currentProp)) {
     // Consume prop
-    const effect = applyPropEffect(state.prop.id, state);
+    const effect = applyPropEffect(currentProp.id, state, frameTime);
     nextProp = null;
-    nextActiveProps = effect.activeProps ?? state.activeProps;
+    nextActiveProps = effect.activeProps ?? activePropsAtFrame;
+    nextPropSpawnAt = isDeterministicTick
+      ? frameTime + getPropSpawnDelay(random)
+      : nextPropSpawnAt;
     // If shrink, apply snake change
     if ('snake' in effect && effect.snake) {
       // eslint-disable-next-line no-param-reassign
@@ -181,30 +237,51 @@ export function advanceGame(
     }
   }
 
-  // Expire old props
-  const now = Date.now();
-  const expiredProps = Object.entries(nextActiveProps).reduce(
-    (acc, [id, prop]) => {
-      if (prop && prop.expiresAt !== Infinity && prop.expiresAt <= now) {
-        return acc;
-      }
-      // eslint-disable-next-line no-param-reassign
-      acc[id as PropId] = prop;
-      return acc;
-    },
-    {} as Partial<Record<PropId, { expiresAt: number } | undefined>>,
-  );
+  const expiredProps = filterExpiredActiveProps(nextActiveProps, frameTime);
+  let spawnedProp = nextProp;
+  let spawnedPropAt = nextPropSpawnAt;
+
+  if (
+    isDeterministicTick &&
+    spawnedProp === null &&
+    typeof spawnedPropAt === 'number' &&
+    frameTime >= spawnedPropAt
+  ) {
+    const position = randomPropPosition(
+      nextSnake,
+      nextFood,
+      nextBonusFood,
+      null,
+      state.obstacles,
+      random,
+    );
+
+    if (position) {
+      const propType = PROPS[Math.floor(random() * PROPS.length)];
+      spawnedProp = {
+        id: propType.id,
+        x: position.x,
+        y: position.y,
+        expiresAt: frameTime + 8_000,
+      };
+      spawnedPropAt = null;
+    } else {
+      spawnedPropAt = frameTime + getPropSpawnDelay(random);
+    }
+  }
 
   return {
     ...state,
     snake: nextSnake,
     food: nextFood,
     bonusFood: nextBonusFood,
-    prop: nextProp,
+    prop: spawnedProp,
     activeProps: expiredProps,
     direction,
     queuedDirection: direction,
     score: state.score + scoreGain,
     isGameOver: false,
+    elapsedMs: isDeterministicTick ? frameTime : state.elapsedMs,
+    nextPropSpawnAt: isDeterministicTick ? spawnedPropAt : state.nextPropSpawnAt,
   };
 }

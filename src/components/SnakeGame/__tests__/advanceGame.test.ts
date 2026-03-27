@@ -47,7 +47,7 @@ describe('advanceGame', () => {
         food: { x: 6, y: 8 },
         obstacles: [{ x: 10, y: 10 }],
       }),
-      () => ({ x: 10, y: 10 }),
+      () => ({ x: 0, y: 0 }),
     );
 
     expect(next.snake).toEqual([

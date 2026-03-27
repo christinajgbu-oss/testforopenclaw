@@ -25,8 +25,8 @@ function listOpenCells(avoidSet: Set<string>, gridSize: number) {
   return options;
 }
 
-function pickRandomCell(options: Cell[]) {
-  return options[Math.floor(Math.random() * options.length)] ?? null;
+function pickRandomCell(options: Cell[], random: () => number = Math.random) {
+  return options[Math.floor(random() * options.length)] ?? null;
 }
 
 export function isObstacle(cell: Cell, obstacles: Cell[]) {
@@ -38,6 +38,7 @@ export function generateObstacles(
   food: Food,
   bonusFood: Food | undefined,
   difficulty: ObstacleDifficulty,
+  random: () => number = Math.random,
 ): Cell[] {
   const count = OBSTACLE_SETTINGS[difficulty].count;
   const snakeSet = new Set(snake.map(toCellKey));
@@ -58,7 +59,7 @@ export function generateObstacles(
   const options = listOpenCells(avoidSet, GRID_SIZE);
 
   for (let index = options.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const randomIndex = Math.floor(random() * (index + 1));
     const current = options[index];
     options[index] = options[randomIndex];
     options[randomIndex] = current;
@@ -71,13 +72,14 @@ export function randomFoodPosition(
   snake: Cell[],
   gridSize: number = GRID_SIZE,
   blockedCells: Cell[] = [],
+  random: () => number = Math.random,
 ): Food {
   const avoidSet = new Set([
     ...snake.map(toCellKey),
     ...blockedCells.map(toCellKey),
   ]);
 
-  return pickRandomCell(listOpenCells(avoidSet, gridSize)) ?? { x: 0, y: 0 };
+  return pickRandomCell(listOpenCells(avoidSet, gridSize), random) ?? { x: 0, y: 0 };
 }
 
 export function isColliding(cell: Cell, snake: Cell[], gridSize = GRID_SIZE) {
@@ -97,6 +99,7 @@ export function randomPropPosition(
   bonusFood: Food | undefined,
   existingProp: Prop | null,
   obstacles: Cell[] = [],
+  random: () => number = Math.random,
 ): { x: number; y: number } | null {
   const avoidSet = new Set([
     ...snake.map(toCellKey),
@@ -106,5 +109,5 @@ export function randomPropPosition(
     ...obstacles.map(toCellKey),
   ]);
 
-  return pickRandomCell(listOpenCells(avoidSet, GRID_SIZE));
+  return pickRandomCell(listOpenCells(avoidSet, GRID_SIZE), random);
 }

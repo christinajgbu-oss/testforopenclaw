@@ -16,7 +16,7 @@ import {
   playNewRecord,
   vibrate,
 } from './audio';
-import { generateObstacles, randomFoodPosition, randomPropPosition } from './gridHelpers';
+import { generateObstacles, randomFoodPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
   DIFFICULTY_SETTINGS,
@@ -24,30 +24,43 @@ import {
   INITIAL_DIRECTION,
   INITIAL_SNAKE,
   OPPOSITE_DIRECTION,
-  PROPS,
   SKINS,
   SKIN_STORAGE_KEY,
   isSkinUnlocked,
 } from './types';
 import type {
+  AchievementId,
   AchievementMeta,
   AchievementStore,
+  Cell,
   Difficulty,
   Direction,
   Food,
   GameState,
   HistoryEntry,
   ObstacleDifficulty,
-  PropId,
-  PropType,
+  ReplayData,
+  ReplayInput,
   SkinId,
 } from './types';
 
 const HIGH_SCORE_STORAGE_KEY = 'snake_highscore';
 export const ACHIEVEMENT_STORAGE_KEY = 'snake_achievements';
 export const HISTORY_STORAGE_KEY = 'snake_history';
+export const REPLAY_STORAGE_KEY = 'snake_replays';
+const MAX_REPLAYS = 50;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+
+type ReplayStore = {
+  replays: ReplayData[];
+};
+
+type GetFoodPosition = (
+  snake: GameState['snake'],
+  gridSize?: number | undefined,
+  blockedCells?: GameState['obstacles'],
+) => Cell;
 
 function getStorage(): StorageLike | null {
   if (typeof window === 'undefined') {
@@ -62,6 +75,146 @@ function readHighScore(storage: StorageLike | null) {
   const parsedValue = Number.parseInt(rawValue ?? '', 10);
 
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+}
+
+export function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s |= 0;
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function createFoodGenerator(random: () => number): GetFoodPosition {
+  return (snake, gridSize, blockedCells = []) =>
+    randomFoodPosition(snake, gridSize, blockedCells, random);
+}
+
+function createReplaySeed() {
+  return Math.floor(Math.random() * 2 ** 32);
+}
+
+function readReplayStore(
+  storage: StorageLike | null = getStorage(),
+): ReplayStore {
+  const rawValue = storage?.getItem(REPLAY_STORAGE_KEY);
+
+  if (!rawValue) {
+    return { replays: [] };
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue) as Partial<ReplayStore>;
+    return {
+      replays: Array.isArray(parsedValue?.replays)
+        ? parsedValue.replays.filter(
+            (replay): replay is ReplayData =>
+              typeof replay === 'object' &&
+              replay !== null &&
+              typeof replay.id === 'string' &&
+              typeof replay.savedAt === 'number' &&
+              typeof replay.seed === 'number' &&
+              Array.isArray(replay.inputs),
+          )
+        : [],
+    };
+  } catch {
+    return { replays: [] };
+  }
+}
+
+export function readReplays(
+  storage: StorageLike | null = getStorage(),
+): ReplayData[] {
+  return readReplayStore(storage).replays;
+}
+
+export function writeReplay(
+  replay: ReplayData,
+  storage: StorageLike | null = getStorage(),
+) {
+  const nextReplays = [replay, ...readReplays(storage)].slice(0, MAX_REPLAYS);
+  storage?.setItem(
+    REPLAY_STORAGE_KEY,
+    JSON.stringify({ replays: nextReplays }),
+  );
+}
+
+function toBase64(value: string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64');
+  }
+
+  const encoded = new TextEncoder().encode(value);
+  let binary = '';
+
+  encoded.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return window.btoa(binary);
+}
+
+function fromBase64(value: string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'base64').toString('utf8');
+  }
+
+  const binary = window.atob(value);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+
+  return new TextDecoder().decode(bytes);
+}
+
+function isReplayData(value: unknown): value is ReplayData {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const replay = value as Partial<ReplayData>;
+
+  return (
+    typeof replay.id === 'string' &&
+    typeof replay.savedAt === 'number' &&
+    typeof replay.seed === 'number' &&
+    typeof replay.difficulty === 'string' &&
+    typeof replay.skinId === 'string' &&
+    typeof replay.obstacleMode === 'boolean' &&
+    typeof replay.durationSeconds === 'number' &&
+    typeof replay.finalScore === 'number' &&
+    Array.isArray(replay.finalAchievementIds) &&
+    Array.isArray(replay.inputs)
+  );
+}
+
+export function encodeReplayData(replay: ReplayData): string {
+  return toBase64(JSON.stringify(replay))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '');
+}
+
+export function decodeReplayData(encoded: string): ReplayData | null {
+  if (!encoded) {
+    return null;
+  }
+
+  try {
+    const normalized = encoded.replaceAll('-', '+').replaceAll('_', '/');
+    const paddingLength = normalized.length % 4;
+    const padded =
+      paddingLength === 0
+        ? normalized
+        : `${normalized}${'='.repeat(4 - paddingLength)}`;
+    const parsed = JSON.parse(fromBase64(padded)) as unknown;
+
+    return isReplayData(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function isSkinId(value: string | null | undefined): value is SkinId {
@@ -301,42 +454,76 @@ export function getSnakeGameFeedback(
   };
 }
 
+export function queueDirectionChange(
+  state: GameState,
+  nextDirection: Direction,
+) {
+  if (state.gameStatus === 'idle') {
+    return {
+      nextState: {
+        ...state,
+        gameStatus: 'running' as const,
+        queuedDirection: nextDirection,
+      },
+      accepted: true,
+      shouldRecord: true,
+    };
+  }
+
+  if (
+    state.isGameOver ||
+    state.gameStatus === 'gameover' ||
+    nextDirection === OPPOSITE_DIRECTION[state.direction]
+  ) {
+    return {
+      nextState: state,
+      accepted: false,
+      shouldRecord: false,
+    };
+  }
+
+  if (state.queuedDirection === nextDirection) {
+    return {
+      nextState: state,
+      accepted: true,
+      shouldRecord: false,
+    };
+  }
+
+  return {
+    nextState: {
+      ...state,
+      queuedDirection: nextDirection,
+    },
+    accepted: true,
+    shouldRecord: true,
+  };
+}
+
 export function createInitialGameState(
   storage: StorageLike | null = getStorage(),
-  getFoodPosition: typeof randomFoodPosition = randomFoodPosition,
+  getFoodPosition: GetFoodPosition = randomFoodPosition,
   difficulty: Difficulty = 'normal',
   obstacleMode: ObstacleDifficulty | null = null,
+  random: () => number = Math.random,
 ): GameState {
   const highScore = readHighScore(storage);
-  const primaryFood = getFoodPosition(INITIAL_SNAKE);
+  const primaryFood = getFoodPosition(INITIAL_SNAKE, GRID_SIZE);
 
-  // For easy mode, generate a second food that avoids the primary food and snake
   const bonusFood =
     difficulty === 'easy'
-      ? (() => {
-          const avoidSet = new Set([
-            ...INITIAL_SNAKE.map((s) => `${s.x}-${s.y}`),
-            `${primaryFood.x}-${primaryFood.y}`,
-          ]);
-          const options: Food[] = [];
-          for (let y = 0; y < GRID_SIZE; y += 1) {
-            for (let x = 0; x < GRID_SIZE; x += 1) {
-              const key = `${x}-${y}`;
-              if (!avoidSet.has(key)) {
-                options.push({ x, y });
-              }
-            }
-          }
-          return (
-            options[Math.floor(Math.random() * options.length)] ?? { x: 0, y: 0 }
-          );
-        })()
+      ? getFoodPosition(INITIAL_SNAKE, GRID_SIZE, [primaryFood])
       : undefined;
 
-  // Generate obstacles if obstacle mode is set
   const obstacles =
     obstacleMode !== null
-      ? generateObstacles(INITIAL_SNAKE, primaryFood, bonusFood, obstacleMode)
+      ? generateObstacles(
+          INITIAL_SNAKE,
+          primaryFood,
+          bonusFood,
+          obstacleMode,
+          random,
+        )
       : [];
 
   return {
@@ -353,6 +540,8 @@ export function createInitialGameState(
     gameStatus: 'idle',
     prop: null,
     activeProps: {},
+    elapsedMs: 0,
+    nextPropSpawnAt: 15_000 + random() * 5_000,
   };
 }
 
@@ -387,6 +576,8 @@ const SERVER_INITIAL_STATE: GameState = {
   gameStatus: 'idle',
   prop: null,
   activeProps: {},
+  elapsedMs: 0,
+  nextPropSpawnAt: null,
 };
 
 export function useSnakeGame() {
@@ -396,6 +587,8 @@ export function useSnakeGame() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [replays, setReplays] = useState<ReplayData[]>([]);
+  const [latestReplay, setLatestReplay] = useState<ReplayData | null>(null);
   const [obstacleMode, setObstacleMode] = useState<ObstacleDifficulty | null>(null);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
@@ -404,26 +597,46 @@ export function useSnakeGame() {
   const achievementMetaRef = useRef(achievementMeta);
   const gameStartTimeRef = useRef<number>(Date.now());
   const previousIsGameOverRef = useRef(false);
-  const propSpawnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentPropsRef = useRef(gameState.activeProps);
+  const seedRef = useRef(createReplaySeed());
+  const randomRef = useRef(seededRandom(seedRef.current));
+  const currentTickRef = useRef(0);
+  const recordedInputsRef = useRef<ReplayInput[]>([]);
+  const latestReplayRef = useRef<ReplayData | null>(null);
+
+  const initializeGame = useCallback(
+    (
+      nextDifficulty: Difficulty,
+      nextObstacleMode: ObstacleDifficulty | null,
+      nextSeed: number = createReplaySeed(),
+    ) => {
+      seedRef.current = nextSeed;
+      randomRef.current = seededRandom(nextSeed);
+      currentTickRef.current = 0;
+      recordedInputsRef.current = [];
+      latestReplayRef.current = null;
+      setLatestReplay(null);
+
+      return createInitialGameState(
+        getStorage(),
+        createFoodGenerator(randomRef.current),
+        nextDifficulty,
+        nextObstacleMode,
+        randomRef.current,
+      );
+    },
+    [],
+  );
 
   const restartForSettings = useCallback(
     (nextDifficulty: Difficulty, nextObstacleMode: ObstacleDifficulty | null) => {
-      setGameState(
-        createInitialGameState(
-          getStorage(),
-          randomFoodPosition,
-          nextDifficulty,
-          nextObstacleMode,
-        ),
-      );
+      setGameState(initializeGame(nextDifficulty, nextObstacleMode));
       const nextMeta = createInitialAchievementMeta();
       achievementMetaRef.current = nextMeta;
       setAchievementMeta(nextMeta);
       gameStartTimeRef.current = Date.now();
       setDurationSeconds(0);
     },
-    [],
+    [initializeGame],
   );
 
   const applyAchievementUpdate = useCallback(
@@ -433,7 +646,7 @@ export function useSnakeGame() {
         nextState,
         achievements: achievementsRef.current,
         meta: achievementMetaRef.current,
-        now: Date.now(),
+        now: nextState.elapsedMs ?? Date.now(),
       });
 
       achievementMetaRef.current = result.meta;
@@ -459,12 +672,17 @@ export function useSnakeGame() {
   // Randomize food position after mount (client only) to avoid SSR mismatch.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setGameState(createInitialGameState(getStorage(), randomFoodPosition, difficulty, obstacleMode));
+      setGameState(initializeGame(difficulty, obstacleMode));
       const storedAchievements = readAchievements();
       achievementsRef.current = storedAchievements;
       setAchievements(storedAchievements);
       setSelectedSkin(readSelectedSkin(getStorage(), storedAchievements));
       setHistory(readHistory());
+      setReplays(readReplays());
+      const encodedReplay = new URLSearchParams(window.location.search).get('replay');
+      const decodedReplay = encodedReplay ? decodeReplayData(encodedReplay) : null;
+      latestReplayRef.current = decodedReplay;
+      setLatestReplay(decodedReplay);
       achievementMetaRef.current = createInitialAchievementMeta();
       setAchievementMeta(createInitialAchievementMeta());
       gameStartTimeRef.current = Date.now();
@@ -475,7 +693,7 @@ export function useSnakeGame() {
       window.clearTimeout(timer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initializeGame]);
 
   const resetGame = useCallback(() => {
     setGameState((currentState) => {
@@ -483,14 +701,14 @@ export function useSnakeGame() {
         playNewRecord();
       }
 
-      return createInitialGameState(getStorage(), randomFoodPosition, difficulty, obstacleMode);
+      return initializeGame(difficulty, obstacleMode);
     });
     const nextMeta = createInitialAchievementMeta();
     achievementMetaRef.current = nextMeta;
     setAchievementMeta(nextMeta);
     gameStartTimeRef.current = Date.now();
     setDurationSeconds(0);
-  }, [difficulty, obstacleMode]);
+  }, [difficulty, initializeGame, obstacleMode]);
 
   const updateDifficulty = useCallback(
     (nextDifficulty: Difficulty) => {
@@ -510,27 +728,19 @@ export function useSnakeGame() {
 
   const turnSnake = useCallback((nextDirection: Direction) => {
     setGameState((currentState) => {
-      // Start game from idle
-      if (currentState.gameStatus === 'idle') {
-        return {
-          ...currentState,
-          gameStatus: 'running',
-          queuedDirection: nextDirection,
-        };
+      const result = queueDirectionChange(currentState, nextDirection);
+
+      if (result.shouldRecord) {
+        recordedInputsRef.current = [
+          ...recordedInputsRef.current,
+          {
+            tick: currentTickRef.current,
+            direction: nextDirection,
+          },
+        ];
       }
 
-      if (
-        currentState.isGameOver ||
-        currentState.gameStatus === 'gameover' ||
-        nextDirection === OPPOSITE_DIRECTION[currentState.direction]
-      ) {
-        return currentState;
-      }
-
-      return {
-        ...currentState,
-        queuedDirection: nextDirection,
-      };
+      return result.nextState;
     });
   }, []);
 
@@ -538,9 +748,18 @@ export function useSnakeGame() {
     setSelectedSkin(selectSkin(skinId, achievementsRef.current));
   }, []);
 
-  const tick = useEffectEvent(() => {
+  const tick = useEffectEvent((tickMs: number) => {
     setGameState((currentState) => {
-      const nextState = syncHighScoreOnGameOver(advanceGame(currentState));
+      const nextState = syncHighScoreOnGameOver(
+        advanceGame(
+          currentState,
+          createFoodGenerator(randomRef.current),
+          {
+            random: randomRef.current,
+            tickMs,
+          },
+        ),
+      );
       // Ensure gameStatus reflects game over
       const finalState =
         nextState.isGameOver && currentState.gameStatus !== 'gameover'
@@ -569,7 +788,8 @@ export function useSnakeGame() {
         playAchievement();
       }
 
-      return nextState;
+      currentTickRef.current += 1;
+      return finalState;
     });
   });
 
@@ -617,6 +837,24 @@ export function useSnakeGame() {
       const duration = Math.floor(
         (Date.now() - gameStartTimeRef.current) / 1_000,
       );
+      const nextReplay: ReplayData = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        savedAt: Date.now(),
+        seed: seedRef.current,
+        difficulty,
+        skinId: selectedSkin,
+        obstacleMode: obstacleMode !== null,
+        obstacleDifficulty: obstacleMode ?? undefined,
+        durationSeconds: duration,
+        finalScore: gameState.score,
+        finalAchievementIds: ACHIEVEMENTS
+          .filter((achievement) => achievementsRef.current[achievement.id])
+          .map((achievement) => achievement.id),
+        inputs: [...recordedInputsRef.current],
+      };
+
+      latestReplayRef.current = nextReplay;
+      setLatestReplay(nextReplay);
       setDurationSeconds(duration);
       // Transition to gameover status
       setGameState((current) =>
@@ -631,6 +869,7 @@ export function useSnakeGame() {
         achievementCount: Object.keys(achievements).length,
         durationSeconds: duration,
         difficulty,
+        replayId: nextReplay.id,
       };
       writeHistory(entry);
       setHistory(readHistory());
@@ -640,78 +879,11 @@ export function useSnakeGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameOver]);
 
-  // Keep currentPropsRef in sync
-  useEffect(() => {
-    currentPropsRef.current = gameState.activeProps;
-  }, [gameState.activeProps]);
-
-  // Schedule next prop spawn
-  const schedulePropSpawn = useCallback((delayMs?: number) => {
-    if (propSpawnTimeoutRef.current) {
-      clearTimeout(propSpawnTimeoutRef.current);
-    }
-    const delay = delayMs ?? 15_000 + Math.random() * 5_000;
-    propSpawnTimeoutRef.current = setTimeout(() => {
-      setGameState((current) => {
-        if (current.gameStatus !== 'running' || current.prop !== null) {
-          return current;
-        }
-        const pos = randomPropPosition(
-          current.snake,
-          current.food,
-          current.bonusFood,
-          null,
-          current.obstacles,
-        );
-        if (!pos) return current;
-        const propType: PropType =
-          PROPS[Math.floor(Math.random() * PROPS.length)];
-        return {
-          ...current,
-          prop: {
-            id: propType.id,
-            x: pos.x,
-            y: pos.y,
-            expiresAt: Date.now() + 8_000,
-          },
-        };
-      });
-    }, delay);
-  }, []);
-
-  // Start prop spawn scheduling when game starts running
-  useEffect(() => {
-    if (gameState.gameStatus === 'running') {
-      // If no prop currently, schedule one
-      schedulePropSpawn();
-    } else {
-      if (propSpawnTimeoutRef.current) {
-        clearTimeout(propSpawnTimeoutRef.current);
-        propSpawnTimeoutRef.current = null;
-      }
-    }
-    return () => {
-      if (propSpawnTimeoutRef.current) {
-        clearTimeout(propSpawnTimeoutRef.current);
-        propSpawnTimeoutRef.current = null;
-      }
-    };
-  }, [gameState.gameStatus, schedulePropSpawn]);
-
-  // Reschedule when prop is consumed (set to null) - spawn next after 15-20s
-  useEffect(() => {
-    if (gameState.prop === null && gameState.gameStatus === 'running') {
-      // Schedule next spawn
-      schedulePropSpawn();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.prop]);
-
   // Calculate effective tick interval based on active props
   const getEffectiveTickMs = useCallback(() => {
     let ms = DIFFICULTY_SETTINGS[difficulty].tickMs;
     const active = gameState.activeProps;
-    const now = Date.now();
+    const now = gameState.elapsedMs ?? 0;
 
     if (active.speed_up?.expiresAt && active.speed_up.expiresAt > now) {
       ms = Math.round(ms * 0.67);
@@ -729,7 +901,7 @@ export function useSnakeGame() {
 
     const effectiveMs = getEffectiveTickMs();
     const timer = window.setInterval(() => {
-      tick();
+      tick(effectiveMs);
     }, effectiveMs);
 
     return () => {
@@ -741,6 +913,8 @@ export function useSnakeGame() {
     ...gameState,
     achievements,
     history,
+    latestReplay,
+    replays,
     durationSeconds,
     selectedSkin,
     difficulty,
