@@ -16,6 +16,7 @@ import {
   playNewRecord,
   vibrate,
 } from './audio';
+import { fetchDailyLeaderboard, submitDailyScore, submitGlobalScore } from './LeaderboardApi';
 import { generateObstacles, randomFoodPosition } from './gridHelpers';
 import {
   ACHIEVEMENTS,
@@ -1238,6 +1239,24 @@ export function useSnakeGame() {
       };
       writeHistory(entry);
       setHistory(readHistory());
+
+      // Auto-submit score to leaderboards
+      const score = gameState.score;
+      if (score > 0) {
+        if (!isDailyChallengeMode) {
+          // Submit global score with 60s rate limit
+          const LAST_GLOBAL_SUBMIT_KEY = 'snake_last_global_submit';
+          const lastSubmit = localStorage.getItem(LAST_GLOBAL_SUBMIT_KEY);
+          const now = Date.now();
+          if (!lastSubmit || now - parseInt(lastSubmit, 10) > 60_000) {
+            localStorage.setItem(LAST_GLOBAL_SUBMIT_KEY, String(now));
+            void submitGlobalScore(score, selectedSkin);
+          }
+        } else {
+          // Submit daily score (upsert — no rate limit needed)
+          void submitDailyScore(getTodayDateString(), score);
+        }
+      }
     }
 
     previousIsGameOverRef.current = gameState.isGameOver;

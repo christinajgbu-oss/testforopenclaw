@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react';
 import pageStyles from '@/app/page.module.css';
 
 import { DailyChallengeCard, DailyChallengeExpired, DailyChallengeResult } from './DailyChallenge';
+import { Leaderboard } from './Leaderboard';
 import { ReplayPlayer } from './ReplayPlayer';
 import { ShareCard } from './ShareCard';
 import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, OBSTACLE_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
@@ -63,6 +64,7 @@ export function SnakeGame({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showDailyResult, setShowDailyResult] = useState(false);
   const [showDailyExpired, setShowDailyExpired] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Handle ?daily= URL parameter for expired challenges
   useEffect(() => {
@@ -350,6 +352,29 @@ export function SnakeGame({
               </div>
             </div>
           )}
+
+          {/* Leaderboard button */}
+          <button
+            type="button"
+            onClick={() => setShowLeaderboard(true)}
+            style={{
+              appearance: 'none',
+              border: '1px solid rgba(148,163,184,0.22)',
+              borderRadius: 16,
+              padding: '12px 16px',
+              background: 'rgba(30,41,59,0.9)',
+              color: '#f8fafc',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            🏆 排行榜
+          </button>
 
           <div style={{ display: 'grid', gap: 12 }}>
             {/* Difficulty selector */}
@@ -893,6 +918,13 @@ export function SnakeGame({
           bestScore={dailyChallenge.bestScore}
           targetScore={dailyChallenge.targetScore}
           onClose={() => setShowDailyExpired(false)}
+        />
+      ) : null}
+      {showLeaderboard ? (
+        <Leaderboard
+          myScore={score}
+          targetScore={dailyChallenge?.targetScore}
+          onClose={() => setShowLeaderboard(false)}
         />
       ) : null}
       {showHistory ? (

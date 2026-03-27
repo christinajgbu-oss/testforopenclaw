@@ -148,6 +148,26 @@ export type DailyChallenge = {
   attempts: number;
 };
 
+
+export type LeaderboardEntry = {
+  playerId: string;
+  score: number;
+  rank: number;
+  skinId?: string;
+};
+
+export type GlobalLeaderboardData = {
+  top100: LeaderboardEntry[];
+  myRank: number | null;
+  myBestScore: number | null;
+};
+
+export type DailyLeaderboardData = {
+  top100: LeaderboardEntry[];
+  myRank: number | null;
+  myScore: number | null;
+};
+
 export type DifficultySetting = {
   tickMs: number;
   foodCount: number;
