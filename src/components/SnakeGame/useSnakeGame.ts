@@ -868,6 +868,7 @@ export function useSnakeGame() {
   const [latestReplay, setLatestReplay] = useState<ReplayData | null>(null);
   const [obstacleMode, setObstacleMode] = useState<ObstacleDifficulty | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
+  const [dailyChallengeLoading, setDailyChallengeLoading] = useState(false);
   const [isDailyChallengeMode, setIsDailyChallengeMode] = useState(false);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
@@ -924,37 +925,43 @@ export function useSnakeGame() {
   );
 
   const loadDailyChallenge = useCallback(async (date: string) => {
-    const storage = getStorage();
-    const existing = readDailyChallengeStore(storage).challenges[date];
-    const baseChallenge = existing ?? saveDailyChallenge(createDailyChallenge(date), storage);
+    setDailyChallengeLoading(true);
+    try {
+      const storage = getStorage();
+      const existing = readDailyChallengeStore(storage).challenges[date];
+      const baseChallenge = existing ?? saveDailyChallenge(createDailyChallenge(date), storage);
 
-    dailyChallengeRef.current = baseChallenge;
-    setDailyChallenge(baseChallenge);
+      dailyChallengeRef.current = baseChallenge;
+      setDailyChallenge(baseChallenge);
 
-    if (baseChallenge.targetScore > 0) {
-      return baseChallenge;
+      if (baseChallenge.targetScore > 0) {
+        return baseChallenge;
+      }
+
+      const targetScore = await calculateDailyChallengeTargetScore(baseChallenge);
+      const nextChallenge = {
+        ...baseChallenge,
+        targetScore,
+      };
+
+      saveDailyChallenge(nextChallenge, storage);
+      dailyChallengeRef.current = nextChallenge;
+      setDailyChallenge(nextChallenge);
+
+      return nextChallenge;
+    } finally {
+      setDailyChallengeLoading(false);
     }
-
-    const targetScore = await calculateDailyChallengeTargetScore(baseChallenge);
-    const nextChallenge = {
-      ...baseChallenge,
-      targetScore,
-    };
-
-    saveDailyChallenge(nextChallenge, storage);
-    dailyChallengeRef.current = nextChallenge;
-    setDailyChallenge(nextChallenge);
-
-    return nextChallenge;
   }, []);
 
   const startDailyChallenge = useCallback(
-    (date: string = getTodayDateString()) => {
-      const nextChallenge =
-        dailyChallengeRef.current?.date === date
-          ? dailyChallengeRef.current
-          : null;
+    async (date: string = getTodayDateString()) => {
+      // If challenge isn't loaded yet, load it first
+      if (!dailyChallengeRef.current || dailyChallengeRef.current.date !== date) {
+        await loadDailyChallenge(date);
+      }
 
+      const nextChallenge = dailyChallengeRef.current;
       if (!nextChallenge) {
         return;
       }
@@ -979,7 +986,7 @@ export function useSnakeGame() {
       gameStartTimeRef.current = Date.now();
       setDurationSeconds(0);
     },
-    [initializeGame],
+    [initializeGame, loadDailyChallenge],
   );
 
   const updateDailyChallenge = useCallback((score: number) => {
@@ -1052,7 +1059,7 @@ export function useSnakeGame() {
       setAchievementMeta(createInitialAchievementMeta());
       gameStartTimeRef.current = Date.now();
       setDurationSeconds(0);
-      void loadDailyChallenge(getTodayDateString());
+      void loadDailyChallenge(getTodayDateString()).catch(console.error);
     }, 0);
 
     return () => {
@@ -1309,6 +1316,7 @@ export function useSnakeGame() {
     setSkin,
     turnSnake,
     dailyChallenge,
+    dailyChallengeLoading,
     isDailyChallengeMode,
     startDailyChallenge,
     updateDailyChallenge,

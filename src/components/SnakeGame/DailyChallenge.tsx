@@ -9,13 +9,16 @@ type Props = {
   challenge: DailyChallengeType;
   onStart: () => void;
   onShare: () => void;
+  loading?: boolean;
 };
 
-export function DailyChallengeCard({ challenge, onStart, onShare }: Props) {
+export function DailyChallengeCard({ challenge, onStart, onShare, loading }: Props) {
   const [showRules, setShowRules] = useState(false);
 
   const statusText = challenge.completed
     ? '🎉 已完成'
+    : loading
+    ? '⏳ 加载中'
     : '⏳ 进行中';
 
   const statusColor = challenge.completed ? '#86efac' : '#fbbf24';
@@ -60,7 +63,7 @@ export function DailyChallengeCard({ challenge, onStart, onShare }: Props) {
           <span
             style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}
           >
-            {challenge.targetScore > 0 ? challenge.targetScore : '计算中...'}
+            {challenge.targetScore > 0 ? challenge.targetScore : loading ? '计算中...' : '—'}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -115,9 +118,14 @@ export function DailyChallengeCard({ challenge, onStart, onShare }: Props) {
           <button
             type="button"
             onClick={onStart}
-            style={primaryButtonStyle}
+            disabled={loading}
+            style={{
+              ...primaryButtonStyle,
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
           >
-            {challenge.completed ? '再来一局' : '开始挑战'}
+            {loading ? '加载中...' : challenge.completed ? '再来一局' : '开始挑战'}
           </button>
           <button
             type="button"

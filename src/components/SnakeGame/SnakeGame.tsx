@@ -54,6 +54,7 @@ export function SnakeGame({
     snake,
     turnSnake,
     dailyChallenge,
+    dailyChallengeLoading,
     isDailyChallengeMode,
     startDailyChallenge,
     updateDailyChallenge,
@@ -317,8 +318,9 @@ export function SnakeGame({
           {dailyChallenge && !isDailyChallengeMode && (
             <DailyChallengeCard
               challenge={dailyChallenge}
+              loading={dailyChallengeLoading}
               onStart={() => {
-                startDailyChallenge();
+                void startDailyChallenge();
               }}
               onShare={() => {
                 const shareText = `今日贪吃蛇挑战：目标 ${dailyChallenge.targetScore} 分，我的最佳是 ${dailyChallenge.bestScore} 分 ${dailyChallenge.completed ? '🎉 已完成！' : ''} 来试试你的！ https://testforopenclaw.pages.dev/?daily=${dailyChallenge.date}`;
