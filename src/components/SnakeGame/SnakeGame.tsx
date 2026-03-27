@@ -7,6 +7,7 @@ import pageStyles from '@/app/page.module.css';
 
 import { DailyChallengeCard, DailyChallengeExpired, DailyChallengeResult } from './DailyChallenge';
 import { Leaderboard } from './Leaderboard';
+import { LevelSelect } from './LevelSelect';
 import { ReplayPlayer } from './ReplayPlayer';
 import { ShareCard } from './ShareCard';
 import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, OBSTACLE_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
@@ -56,7 +57,11 @@ export function SnakeGame({
     dailyChallenge,
     dailyChallengeLoading,
     isDailyChallengeMode,
+    isLevelMode,
     startDailyChallenge,
+    startLevelMode,
+    levelProgress,
+    currentLevel,
     updateDailyChallenge,
   } = useSnakeGame();
   const [showHistory, setShowHistory] = useState(false);
@@ -66,6 +71,7 @@ export function SnakeGame({
   const [showDailyResult, setShowDailyResult] = useState(false);
   const [showDailyExpired, setShowDailyExpired] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showLevelSelect, setShowLevelSelect] = useState(false);
 
   // Handle ?daily= URL parameter for expired challenges
   useEffect(() => {
@@ -376,6 +382,29 @@ export function SnakeGame({
             }}
           >
             🏆 排行榜
+          </button>
+
+          {/* Level mode button */}
+          <button
+            type="button"
+            onClick={() => setShowLevelSelect(true)}
+            style={{
+              appearance: 'none',
+              border: '1px solid rgba(148,163,184,0.22)',
+              borderRadius: 16,
+              padding: '12px 16px',
+              background: 'rgba(30,41,59,0.9)',
+              color: '#f8fafc',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            🎮 关卡模式
           </button>
 
           <div style={{ display: 'grid', gap: 12 }}>
@@ -826,7 +855,79 @@ export function SnakeGame({
           }}
         >
           <div style={{ display: 'grid', gap: 16, width: 'min(560px, 100%)' }}>
-            {isDailyChallengeMode && dailyChallenge ? (
+            {isLevelMode && currentLevel ? (
+              <div
+                style={{
+                  padding: 24,
+                  borderRadius: 20,
+                  background: 'rgba(30,41,59,0.96)',
+                  border: '1px solid rgba(148,163,184,0.22)',
+                  display: 'grid',
+                  gap: 16,
+                  textAlign: 'center',
+                }}
+              >
+                {score >= currentLevel.targetScore ? (
+                  <div style={{ fontSize: 48, lineHeight: 1 }}>🎉</div>
+                ) : (
+                  <div style={{ fontSize: 48, lineHeight: 1 }}>😢</div>
+                )}
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#f8fafc' }}>
+                  {score >= currentLevel.targetScore ? '通关成功！' : '未达标'}
+                </div>
+                <div style={{ fontSize: 14, color: '#94a3b8' }}>
+                  {currentLevel.name}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ padding: 14, borderRadius: 14, background: 'rgba(30,41,59,0.8)', border: '1px solid rgba(148,163,184,0.15)' }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>你的得分</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#86efac' }}>{score}</div>
+                  </div>
+                  <div style={{ padding: 14, borderRadius: 14, background: 'rgba(30,41,59,0.8)', border: '1px solid rgba(148,163,184,0.15)' }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>目标分数</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#fbbf24' }}>{currentLevel.targetScore}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void startLevelMode(currentLevel.id);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 14,
+                      background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                      border: 'none',
+                      color: '#1c1917',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    再来一局
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetGame();
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 14,
+                      background: 'rgba(30,41,59,0.9)',
+                      border: '1px solid rgba(148,163,184,0.22)',
+                      color: '#94a3b8',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    返回关卡
+                  </button>
+                </div>
+              </div>
+            ) : isDailyChallengeMode && dailyChallenge ? (
               <DailyChallengeResult
                 challenge={dailyChallenge}
                 score={score}
@@ -927,6 +1028,16 @@ export function SnakeGame({
           myScore={score}
           targetScore={dailyChallenge?.targetScore}
           onClose={() => setShowLeaderboard(false)}
+        />
+      ) : null}
+      {showLevelSelect ? (
+        <LevelSelect
+          progress={levelProgress}
+          onSelect={(levelId) => {
+            setShowLevelSelect(false);
+            void startLevelMode(levelId);
+          }}
+          onClose={() => setShowLevelSelect(false)}
         />
       ) : null}
       {showHistory ? (

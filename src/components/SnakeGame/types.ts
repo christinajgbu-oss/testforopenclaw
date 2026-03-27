@@ -195,6 +195,8 @@ export const OBSTACLE_SETTINGS: Record<ObstacleDifficulty, ObstacleDifficultySet
   hard: { count: 9, label: '困难', labelEn: 'Hard' },
 };
 
+export type GameMode = 'normal' | 'daily' | 'level';
+
 export type ShareCardProps = {
   score: number;
   skinId: SkinId;

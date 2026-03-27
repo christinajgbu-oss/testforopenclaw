@@ -19,6 +19,13 @@ import {
 import { fetchDailyLeaderboard, submitDailyScore, submitGlobalScore } from './LeaderboardApi';
 import { generateObstacles, randomFoodPosition } from './gridHelpers';
 import {
+  getLevelById,
+  getNextLevelId,
+  LEVELS,
+  readLevelProgress,
+  writeLevelProgress,
+} from './levels';
+import {
   ACHIEVEMENTS,
   DIFFICULTY_SETTINGS,
   GRID_SIZE,
@@ -869,7 +876,10 @@ export function useSnakeGame() {
   const [obstacleMode, setObstacleMode] = useState<ObstacleDifficulty | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [dailyChallengeLoading, setDailyChallengeLoading] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState<ReturnType<typeof getLevelById>>(undefined);
+  const [levelProgress, setLevelProgress] = useState(readLevelProgress);
   const [isDailyChallengeMode, setIsDailyChallengeMode] = useState(false);
+  const [isLevelMode, setIsLevelMode] = useState(false);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
@@ -988,6 +998,66 @@ export function useSnakeGame() {
     },
     [initializeGame, loadDailyChallenge],
   );
+
+  const startLevelMode = useCallback(
+    (levelId: number) => {
+      const level = getLevelById(levelId);
+      if (!level) return;
+
+      // Use levelId * 12345 as seed for determinism
+      const seed = levelId * 12345;
+      const random = seededRandom(seed);
+      const primaryFood = randomFoodPosition(INITIAL_SNAKE, GRID_SIZE, level.obstaclePositions, random);
+      const bonusFood =
+        DIFFICULTY_SETTINGS.normal.foodCount > 1
+          ? randomFoodPosition(INITIAL_SNAKE, GRID_SIZE, [primaryFood, ...level.obstaclePositions], random)
+          : null;
+
+      const initialState: GameState = {
+        snake: INITIAL_SNAKE,
+        direction: INITIAL_DIRECTION,
+        food: primaryFood,
+        bonusFood: bonusFood ?? undefined,
+        score: 0,
+        highScore: 0,
+        gameStatus: 'playing',
+        tick: 0,
+        elapsedMs: null,
+        obstacles: level.obstaclePositions,
+        prop: null,
+        nextPropSpawnAt: null,
+        activeProps: [],
+        speedLevel: 1,
+        speedUpsRemaining: 0,
+      };
+
+      setCurrentLevel(level);
+      setIsLevelMode(true);
+      setIsDailyChallengeMode(false);
+      setDifficulty('normal');
+      setObstacleMode(null);
+      setGameState(initialState);
+      const nextMeta = createInitialAchievementMeta();
+      achievementMetaRef.current = nextMeta;
+      setAchievementMeta(nextMeta);
+      gameStartTimeRef.current = Date.now();
+      setDurationSeconds(0);
+    },
+    [],
+  );
+
+  const completeLevel = useCallback((levelId: number) => {
+    const progress = readLevelProgress();
+    if (!progress.completedLevels.includes(levelId)) {
+      const next = { ...progress, completedLevels: [...progress.completedLevels, levelId] };
+      const nextId = getNextLevelId(levelId);
+      if (nextId && next.unlockedLevelId < nextId) {
+        next.unlockedLevelId = nextId;
+      }
+      writeLevelProgress(next);
+      setLevelProgress(next);
+    }
+  }, []);
 
   const updateDailyChallenge = useCallback((score: number) => {
     const currentChallenge = dailyChallengeRef.current;
@@ -1264,6 +1334,13 @@ export function useSnakeGame() {
           void submitDailyScore(getTodayDateString(), score);
         }
       }
+
+      // Handle level mode completion
+      if (isLevelMode && currentLevel) {
+        if (score >= currentLevel.targetScore) {
+          completeLevel(currentLevel.id);
+        }
+      }
     }
 
     previousIsGameOverRef.current = gameState.isGameOver;
@@ -1318,7 +1395,11 @@ export function useSnakeGame() {
     dailyChallenge,
     dailyChallengeLoading,
     isDailyChallengeMode,
+    isLevelMode,
     startDailyChallenge,
+    startLevelMode,
+    levelProgress,
+    currentLevel,
     updateDailyChallenge,
   };
 }
