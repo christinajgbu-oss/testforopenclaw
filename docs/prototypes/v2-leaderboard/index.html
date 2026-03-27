@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>贪吃蛇排行榜原型</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .phone-frame {
+      width: 390px;
+      background: #111128;
+      border-radius: 32px;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(99, 102, 241, 0.3);
+    }
+
+    /* 状态栏 */
+    .status-bar {
+      background: #0a0a1a;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #888;
+    }
+
+    /* 主界面 */
+    .game-home {
+      padding: 24px 20px 32px;
+      text-align: center;
+    }
+
+    .game-title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #22c55e, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .game-subtitle {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 32px;
+    }
+
+    /* 棋盘预览 */
+    .board-preview {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto 28px;
+      background: #0a0a1a;
+      border-radius: 12px;
+      border: 2px solid #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 12px;
+    }
+
+    /* 主按钮组 */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #22c55e, #15803d);
+      color: white;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: #1e1e3a;
+      color: #e0e0e0;
+      border: 1px solid #333;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+
+    .btn-secondary:hover { background: #2a2a4a; }
+    .btn-secondary .icon { font-size: 16px; }
+
+    /* 排行榜页面 */
+    .leaderboard-page {
+      display: none;
+      height: 100%;
+      flex-direction: column;
+    }
+
+    .leaderboard-page.active { display: flex; }
+    .game-home.hidden { display: none; }
+
+    /* 排行榜头部 */
+    .lb-header {
+      padding: 20px 20px 0;
+    }
+
+    .lb-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px 4px 0;
+    }
+
+    .tab-row {
+      display: flex;
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 4px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px 12px;
+      border: none;
+      background: none;
+      color: #666;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: #22c55e;
+      color: white;
+    }
+
+    /* 自己排名卡片 */
+    .my-rank-card {
+      background: linear-gradient(135deg, #1e1e3a, #252550);
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .my-rank-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .my-rank-badge {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #22c55e, #15803d);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .my-rank-info .label {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 2px;
+    }
+
+    .my-rank-info .score {
+      font-size: 22px;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+
+    .my-rank-right {
+      text-align: right;
+    }
+
+    .my-rank-right .label {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 2px;
+    }
+
+    .my-rank-right .rank {
+      font-size: 20px;
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    /* 排行榜列表 */
+    .lb-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 20px;
+    }
+
+    .lb-entry {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      background: #1a1a2e;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      transition: background 0.2s;
+    }
+
+    .lb-entry:hover { background: #222240; }
+
+    .lb-entry.is-me {
+      background: linear-gradient(135deg, #1a2e1a, #1a3020);
+      border: 1px solid #22c55e55;
+    }
+
+    .rank-num {
+      width: 28px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    .rank-medal {
+      width: 28px;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .rank-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+      margin-right: 10px;
+    }
+
+    .rank-icon.rank-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+    .rank-icon.rank-2 { background: linear-gradient(135deg, #d1d5db, #9ca3af); }
+    .rank-icon.rank-3 { background: linear-gradient(135deg, #d97706, #b45309); }
+    .rank-icon.rank-other { background: #333; }
+
+    .player-name {
+      flex: 1;
+      font-size: 14px;
+      color: #ccc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .lb-entry.is-me .player-name { color: #22c55e; font-weight: 600; }
+
+    .entry-score {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e0e0e0;
+      margin-left: 12px;
+    }
+
+    .lb-entry.is-me .entry-score { color: #22c55e; }
+
+    /* 刷新按钮 */
+    .refresh-row {
+      padding: 0 20px 16px;
+    }
+
+    .refresh-btn {
+      width: 100%;
+      background: #1e1e3a;
+      border: 1px solid #333;
+      color: #888;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .refresh-btn:hover { background: #2a2a4a; color: #aaa; }
+
+    /* Tab 切换时隐藏列表 */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <!-- 主界面 -->
+  <div class="game-home" id="gameHome">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span>📶 📡 🔋</span>
+    </div>
+
+    <h1 class="game-title">🐍 贪吃蛇</h1>
+    <p class="game-subtitle">增强版</p>
+
+    <div class="board-preview">
+      <span>16×16 棋盘预览</span>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn-primary" onclick="showGame()">开始游戏</button>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="showDailyChallenge()">
+          <span class="icon">🎯</span> 每日挑战
+        </button>
+        <button class="btn-secondary" onclick="showLeaderboard()">
+          <span class="icon">🏆</span> 排行榜
+        </button>
+      </div>
+      <button class="btn-secondary" onclick="showSettings()">
+        ⚙️ 设置
+      </button>
+    </div>
+  </div>
+
+  <!-- 排行榜页面 -->
+  <div class="leaderboard-page" id="leaderboardPage">
+    <div class="lb-header">
+      <div class="lb-nav">
+        <button class="back-btn" onclick="backHome()">←</button>
+        <div class="tab-row">
+          <button class="tab active" onclick="switchTab(this, 'global')">🏆 总分榜</button>
+          <button class="tab" onclick="switchTab(this, 'daily')">🎯 今日挑战</button>
+        </div>
+      </div>
+
+      <!-- 全局榜 -->
+      <div class="tab-content active" id="globalTab">
+        <div class="my-rank-card">
+          <div class="my-rank-left">
+            <div class="my-rank-badge">42</div>
+            <div class="my-rank-info">
+              <div class="label">你的排名</div>
+              <div class="score">256 分</div>
+            </div>
+          </div>
+          <div class="my-rank-right">
+            <div class="label">历史最佳</div>
+            <div class="rank">256</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 每日挑战榜 -->
+      <div class="tab-content" id="dailyTab">
+        <div class="my-rank-card">
+          <div class="my-rank-left">
+            <div class="my-rank-badge" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">3</div>
+            <div class="my-rank-info">
+              <div class="label">今日排名</div>
+              <div class="score">145 分</div>
+            </div>
+          </div>
+          <div class="my-rank-right">
+            <div class="label">目标</div>
+            <div class="rank" style="color: #06b6d4;">128</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 列表区域 -->
+    <div class="lb-list" id="lbList">
+      <!-- 全局榜列表 -->
+      <div class="tab-content active" id="globalList">
+        <div class="lb-entry">
+          <div class="rank-medal">🥇</div>
+          <div class="rank-icon rank-1">1</div>
+          <div class="player-name">匿名玩家A</div>
+          <div class="entry-score">512</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-medal">🥈</div>
+          <div class="rank-icon rank-2">2</div>
+          <div class="player-name">匿名玩家B</div>
+          <div class="entry-score">489</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-medal">🥉</div>
+          <div class="rank-icon rank-3">3</div>
+          <div class="player-name">匿名玩家C</div>
+          <div class="entry-score">467</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">4</div>
+          <div class="rank-icon rank-other">4</div>
+          <div class="player-name">匿名玩家D</div>
+          <div class="entry-score">398</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">5</div>
+          <div class="rank-icon rank-other">5</div>
+          <div class="player-name">匿名玩家E</div>
+          <div class="entry-score">367</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">6</div>
+          <div class="rank-icon rank-other">6</div>
+          <div class="player-name">匿名玩家F</div>
+          <div class="entry-score">334</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">7</div>
+          <div class="rank-icon rank-other">7</div>
+          <div class="player-name">匿名玩家G</div>
+          <div class="entry-score">312</div>
+        </div>
+        <!-- 自己 -->
+        <div class="lb-entry is-me">
+          <div class="rank-num">42</div>
+          <div class="rank-icon rank-other" style="background: linear-gradient(135deg, #22c55e, #15803d); color: white;">42</div>
+          <div class="player-name">你</div>
+          <div class="entry-score">256</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">43</div>
+          <div class="rank-icon rank-other">43</div>
+          <div class="player-name">匿名玩家H</div>
+          <div class="entry-score">248</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">44</div>
+          <div class="rank-icon rank-other">44</div>
+          <div class="player-name">匿名玩家I</div>
+          <div class="entry-score">241</div>
+        </div>
+      </div>
+
+      <!-- 每日榜列表 -->
+      <div class="tab-content" id="dailyList">
+        <div class="lb-entry">
+          <div class="rank-medal">🥇</div>
+          <div class="rank-icon rank-1">1</div>
+          <div class="player-name">匿名玩家X</div>
+          <div class="entry-score">178</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-medal">🥈</div>
+          <div class="rank-icon rank-2">2</div>
+          <div class="player-name">匿名玩家Y</div>
+          <div class="entry-score">156</div>
+        </div>
+        <div class="lb-entry is-me">
+          <div class="rank-medal">🥉</div>
+          <div class="rank-icon rank-3">3</div>
+          <div class="player-name">你</div>
+          <div class="entry-score">145</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">4</div>
+          <div class="rank-icon rank-other">4</div>
+          <div class="player-name">匿名玩家Z</div>
+          <div class="entry-score">132</div>
+        </div>
+        <div class="lb-entry">
+          <div class="rank-num">5</div>
+          <div class="rank-icon rank-other">5</div>
+          <div class="player-name">匿名玩家W</div>
+          <div class="entry-score">128</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="refresh-row">
+      <button class="refresh-btn" onclick="refresh()">🔄 刷新</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showLeaderboard() {
+    document.getElementById('gameHome').classList.add('hidden');
+    document.getElementById('leaderboardPage').classList.add('active');
+  }
+
+  function backHome() {
+    document.getElementById('leaderboardPage').classList.remove('active');
+    document.getElementById('gameHome').classList.remove('hidden');
+  }
+
+  function showGame() {
+    alert('开始游戏（原型演示）');
+  }
+
+  function showDailyChallenge() {
+    alert('每日挑战（原型演示）');
+  }
+
+  function showSettings() {
+    alert('设置（原型演示）');
+  }
+
+  function switchTab(btn, tab) {
+    // 更新 tab 状态
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+
+    // 切换列表内容
+    if (tab === 'global') {
+      document.getElementById('globalTab').classList.add('active');
+      document.getElementById('globalList').classList.add('active');
+      document.getElementById('dailyTab').classList.remove('active');
+      document.getElementById('dailyList').classList.remove('active');
+    } else {
+      document.getElementById('dailyTab').classList.add('active');
+      document.getElementById('dailyList').classList.add('active');
+      document.getElementById('globalTab').classList.remove('active');
+      document.getElementById('globalList').classList.remove('active');
+    }
+  }
+
+  function refresh() {
+    alert('刷新排行榜（原型演示）');
+  }
+</script>
+
+</body>
+</html>
