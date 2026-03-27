@@ -5,11 +5,12 @@ import type { CSSProperties } from 'react';
 
 import pageStyles from '@/app/page.module.css';
 
+import { DailyChallengeCard, DailyChallengeExpired, DailyChallengeResult } from './DailyChallenge';
 import { ReplayPlayer } from './ReplayPlayer';
 import { ShareCard } from './ShareCard';
 import { ACHIEVEMENTS, DIFFICULTY_SETTINGS, OBSTACLE_SETTINGS, PROPS, GRID_SIZE, SKINS, isSkinUnlocked } from './types';
 import type { Cell, Difficulty, ObstacleDifficulty, PropId, ReplayData } from './types';
-import { encodeReplayData, useSnakeGame, writeReplay } from './useSnakeGame';
+import { encodeReplayData, getTodayDateString, useSnakeGame, writeReplay } from './useSnakeGame';
 
 function isSameCell(a: Cell, b: Cell) {
   return a.x === b.x && a.y === b.y;
@@ -17,8 +18,10 @@ function isSameCell(a: Cell, b: Cell) {
 
 export function SnakeGame({
   replayData = null,
+  dailyDate = null,
 }: {
   replayData?: ReplayData | null;
+  dailyDate?: string | null;
 }) {
   if (replayData) {
     return <ReplayPlayer replayData={replayData} />;
@@ -49,11 +52,26 @@ export function SnakeGame({
     setSkin,
     snake,
     turnSnake,
+    dailyChallenge,
+    isDailyChallengeMode,
+    startDailyChallenge,
+    updateDailyChallenge,
   } = useSnakeGame();
   const [showHistory, setShowHistory] = useState(false);
   const [activeReplay, setActiveReplay] = useState<ReplayData | null>(null);
   const [replaySaveChoice, setReplaySaveChoice] = useState<'pending' | 'saved' | 'skipped'>('pending');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showDailyResult, setShowDailyResult] = useState(false);
+  const [showDailyExpired, setShowDailyExpired] = useState(false);
+
+  // Handle ?daily= URL parameter for expired challenges
+  useEffect(() => {
+    if (!dailyDate) return;
+    const today = getTodayDateString();
+    if (dailyDate !== today) {
+      setShowDailyExpired(true);
+    }
+  }, [dailyDate]);
   const [activePropToasts, setActivePropToasts] = useState<
     Array<{ id: PropId; name: string; icon: string }>
   >([]);
@@ -76,6 +94,17 @@ export function SnakeGame({
       setActiveReplay(null);
     }
   }, [isGameOver]);
+
+  // Update daily challenge record on game over
+  useEffect(() => {
+    if (!isGameOver || !isDailyChallengeMode) return;
+    if (!dailyChallenge) return;
+    const result = updateDailyChallenge(score);
+    if (result) {
+      setShowDailyResult(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGameOver, isDailyChallengeMode]);
 
   useEffect(() => {
     const handleReplayExit = () => {
@@ -281,6 +310,46 @@ export function SnakeGame({
               使用方向键或 WASD 控制移动，撞墙或撞到自己时游戏结束。按 Enter 或点击按钮可以立即重新开始。
             </p>
           </div>
+
+          {/* Daily Challenge Card */}
+          {dailyChallenge && !isDailyChallengeMode && (
+            <DailyChallengeCard
+              challenge={dailyChallenge}
+              onStart={() => {
+                startDailyChallenge();
+              }}
+              onShare={() => {
+                const shareText = `今日贪吃蛇挑战：目标 ${dailyChallenge.targetScore} 分，我的最佳是 ${dailyChallenge.bestScore} 分 ${dailyChallenge.completed ? '🎉 已完成！' : ''} 来试试你的！ https://testforopenclaw.pages.dev/?daily=${dailyChallenge.date}`;
+                void navigator.clipboard.writeText(shareText);
+                setToastMessage('分享内容已复制');
+              }}
+            />
+          )}
+
+          {isDailyChallengeMode && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 12,
+                background: 'rgba(251, 191, 36, 0.12)',
+                border: '1px solid rgba(251, 191, 36, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div>
+                <span style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700 }}>🎯 每日挑战</span>
+                <span style={{ color: '#94a3b8', fontSize: 12, marginLeft: 8 }}>
+                  目标 {dailyChallenge?.targetScore} 分
+                </span>
+              </div>
+              <div style={{ color: '#86efac', fontSize: 13, fontWeight: 600 }}>
+                {score} / {dailyChallenge?.targetScore}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gap: 12 }}>
             {/* Difficulty selector */}
@@ -730,14 +799,37 @@ export function SnakeGame({
           }}
         >
           <div style={{ display: 'grid', gap: 16, width: 'min(560px, 100%)' }}>
-            <ShareCard
-              score={score}
-              skinId={selectedSkin}
-              achievementIds={unlockedAchievementIds}
-              durationSeconds={durationSeconds}
-              onClose={resetGame}
-              onRestart={resetGame}
-            />
+            {isDailyChallengeMode && dailyChallenge ? (
+              <DailyChallengeResult
+                challenge={dailyChallenge}
+                score={score}
+                onReplay={() => {
+                  setShowDailyResult(false);
+                  startDailyChallenge();
+                }}
+                onShare={() => {
+                  const hitTarget = score >= (dailyChallenge?.targetScore ?? 0);
+                  const text = hitTarget
+                    ? `今日贪吃蛇挑战：目标 ${dailyChallenge?.targetScore} 分，我得了 ${score} 分 🎉 来试试你的！`
+                    : `今日贪吃蛇挑战：目标 ${dailyChallenge?.targetScore} 分，我得了 ${score} 分。继续加油！ https://testforopenclaw.pages.dev/?daily=${dailyChallenge?.date}`;
+                  void navigator.clipboard.writeText(text);
+                  setToastMessage('分享内容已复制');
+                }}
+                onClose={() => {
+                  setShowDailyResult(false);
+                  resetGame();
+                }}
+              />
+            ) : (
+              <ShareCard
+                score={score}
+                skinId={selectedSkin}
+                achievementIds={unlockedAchievementIds}
+                durationSeconds={durationSeconds}
+                onClose={resetGame}
+                onRestart={resetGame}
+              />
+            )}
             {latestReplay ? (
               <div
                 style={{
@@ -794,6 +886,14 @@ export function SnakeGame({
             ) : null}
           </div>
         </div>
+      ) : null}
+      {showDailyExpired && dailyChallenge ? (
+        <DailyChallengeExpired
+          date={dailyDate ?? dailyChallenge.date}
+          bestScore={dailyChallenge.bestScore}
+          targetScore={dailyChallenge.targetScore}
+          onClose={() => setShowDailyExpired(false)}
+        />
       ) : null}
       {showHistory ? (
         <div

@@ -136,6 +136,18 @@ export type ReplayData = {
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
+export type DailyChallenge = {
+  date: string;
+  seed: number;
+  difficulty: Difficulty;
+  obstacleMode: boolean;
+  obstacleDifficulty: ObstacleDifficulty;
+  targetScore: number;
+  bestScore: number;
+  completed: boolean;
+  attempts: number;
+};
+
 export type DifficultySetting = {
   tickMs: number;
   foodCount: number;

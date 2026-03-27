@@ -33,6 +33,7 @@ import type {
   AchievementMeta,
   AchievementStore,
   Cell,
+  DailyChallenge,
   Difficulty,
   Direction,
   Food,
@@ -48,12 +49,28 @@ const HIGH_SCORE_STORAGE_KEY = 'snake_highscore';
 export const ACHIEVEMENT_STORAGE_KEY = 'snake_achievements';
 export const HISTORY_STORAGE_KEY = 'snake_history';
 export const REPLAY_STORAGE_KEY = 'snake_replays';
+export const DAILY_CHALLENGE_STORAGE_KEY = 'snake_daily_challenges';
 const MAX_REPLAYS = 50;
+const MAX_DAILY_CHALLENGES = 30;
+const DAILY_CHALLENGE_PLAYOUTS = 1_000;
+const DAILY_CHALLENGE_CHUNK_SIZE = 50;
+const DAILY_CHALLENGE_MAX_TICKS = 4_096;
+const DAILY_CHALLENGE_DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
+const DAILY_CHALLENGE_OBSTACLES: ObstacleDifficulty[] = [
+  'simple',
+  'normal',
+  'hard',
+];
+const DAILY_CHALLENGE_DIRECTIONS: Direction[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 
 type ReplayStore = {
   replays: ReplayData[];
+};
+
+type DailyChallengeStore = {
+  challenges: Record<string, DailyChallenge>;
 };
 
 type GetFoodPosition = (
@@ -88,9 +105,196 @@ export function seededRandom(seed: number) {
   };
 }
 
+export function getTodayDateString(now: Date = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function getDailySeed(date: string) {
+  let hash = 0;
+
+  for (let index = 0; index < date.length; index += 1) {
+    hash = Math.imul(hash ^ date.charCodeAt(index), 0x45d9f3b);
+    hash ^= hash >>> 16;
+  }
+
+  return hash >>> 0;
+}
+
+export type SharedModeState = {
+  dailyChallengeDate: string | null;
+  expiredDailyChallengeDate: string | null;
+  replayData: ReplayData | null;
+};
+
+export function resolveSharedModeState(
+  search: string,
+  today: string,
+): SharedModeState {
+  const params = new URLSearchParams(search);
+  const dailyParam = params.get('daily');
+  const replayParam = params.get('replay');
+
+  if (replayParam) {
+    const decoded = decodeReplayData(replayParam);
+    return {
+      dailyChallengeDate: null,
+      expiredDailyChallengeDate: null,
+      replayData: decoded,
+    };
+  }
+
+  if (dailyParam) {
+    if (dailyParam === today) {
+      return {
+        dailyChallengeDate: dailyParam,
+        expiredDailyChallengeDate: null,
+        replayData: null,
+      };
+    } else {
+      return {
+        dailyChallengeDate: null,
+        expiredDailyChallengeDate: dailyParam,
+        replayData: null,
+      };
+    }
+  }
+
+  return {
+    dailyChallengeDate: null,
+    expiredDailyChallengeDate: null,
+    replayData: null,
+  };
+}
+
 function createFoodGenerator(random: () => number): GetFoodPosition {
   return (snake, gridSize, blockedCells = []) =>
     randomFoodPosition(snake, gridSize, blockedCells, random);
+}
+
+function isDailyChallenge(value: unknown): value is DailyChallenge {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const challenge = value as Partial<DailyChallenge>;
+
+  return (
+    typeof challenge.date === 'string' &&
+    typeof challenge.seed === 'number' &&
+    typeof challenge.difficulty === 'string' &&
+    typeof challenge.obstacleMode === 'boolean' &&
+    typeof challenge.obstacleDifficulty === 'string' &&
+    typeof challenge.targetScore === 'number' &&
+    typeof challenge.bestScore === 'number' &&
+    typeof challenge.completed === 'boolean' &&
+    typeof challenge.attempts === 'number'
+  );
+}
+
+function pruneDailyChallenges(
+  challenges: Record<string, DailyChallenge>,
+): Record<string, DailyChallenge> {
+  return Object.fromEntries(
+    Object.entries(challenges)
+      .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
+      .slice(0, MAX_DAILY_CHALLENGES),
+  );
+}
+
+export function createDailyChallenge(date: string): DailyChallenge {
+  const seed = getDailySeed(date);
+  const random = seededRandom(seed);
+  const difficulty =
+    DAILY_CHALLENGE_DIFFICULTIES[
+      Math.floor(random() * DAILY_CHALLENGE_DIFFICULTIES.length)
+    ] ?? 'normal';
+  const obstacleMode = random() >= 0.35;
+  const obstacleDifficulty = obstacleMode
+    ? DAILY_CHALLENGE_OBSTACLES[
+        Math.floor(random() * DAILY_CHALLENGE_OBSTACLES.length)
+      ] ?? 'normal'
+    : 'simple';
+
+  return {
+    date,
+    seed,
+    difficulty,
+    obstacleMode,
+    obstacleDifficulty,
+    targetScore: 0,
+    bestScore: 0,
+    completed: false,
+    attempts: 0,
+  };
+}
+
+export function readDailyChallengeStore(
+  storage: StorageLike | null = getStorage(),
+): DailyChallengeStore {
+  const rawValue = storage?.getItem(DAILY_CHALLENGE_STORAGE_KEY);
+
+  if (!rawValue) {
+    return { challenges: {} };
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue) as Partial<DailyChallengeStore>;
+    const challenges = Object.fromEntries(
+      Object.entries(parsedValue?.challenges ?? {}).filter((entry) =>
+        isDailyChallenge(entry[1]),
+      ),
+    );
+
+    return {
+      challenges: pruneDailyChallenges(challenges),
+    };
+  } catch {
+    return { challenges: {} };
+  }
+}
+
+export function saveDailyChallenge(
+  challenge: DailyChallenge,
+  storage: StorageLike | null = getStorage(),
+) {
+  const existing = readDailyChallengeStore(storage).challenges;
+  const challenges = pruneDailyChallenges({
+    ...existing,
+    [challenge.date]: challenge,
+  });
+
+  storage?.setItem(
+    DAILY_CHALLENGE_STORAGE_KEY,
+    JSON.stringify({ challenges }),
+  );
+
+  return challenge;
+}
+
+export function updateStoredDailyChallengeResult(
+  date: string,
+  score: number,
+  storage: StorageLike | null = getStorage(),
+) {
+  const challenge = readDailyChallengeStore(storage).challenges[date];
+
+  if (!challenge) {
+    return null;
+  }
+
+  const nextChallenge: DailyChallenge = {
+    ...challenge,
+    bestScore: Math.max(challenge.bestScore, score),
+    completed: challenge.completed || score >= challenge.targetScore,
+    attempts: challenge.attempts + 1,
+  };
+
+  saveDailyChallenge(nextChallenge, storage);
+  return nextChallenge;
 }
 
 function createReplaySeed() {
@@ -545,6 +749,78 @@ export function createInitialGameState(
   };
 }
 
+function simulateDailyChallengePlayout(challenge: DailyChallenge, seed: number) {
+  const random = seededRandom(seed);
+  const obstacleMode = challenge.obstacleMode
+    ? challenge.obstacleDifficulty
+    : null;
+  const getFoodPosition = createFoodGenerator(random);
+  const tickMs = DIFFICULTY_SETTINGS[challenge.difficulty].tickMs;
+  let state = createInitialGameState(
+    null,
+    getFoodPosition,
+    challenge.difficulty,
+    obstacleMode,
+    random,
+  );
+  let tick = 0;
+
+  while (!state.isGameOver && tick < DAILY_CHALLENGE_MAX_TICKS) {
+    const nextDirection =
+      DAILY_CHALLENGE_DIRECTIONS[
+        Math.floor(random() * DAILY_CHALLENGE_DIRECTIONS.length)
+      ] ?? 'RIGHT';
+
+    state = queueDirectionChange(state, nextDirection).nextState;
+    state = advanceGame(state, getFoodPosition, {
+      random,
+      tickMs,
+    });
+    tick += 1;
+  }
+
+  return state.score;
+}
+
+export async function calculateDailyChallengeTargetScore(
+  challenge: DailyChallenge,
+  options: {
+    playoutCount?: number;
+    chunkSize?: number;
+  } = {},
+) {
+  const playoutCount = options.playoutCount ?? DAILY_CHALLENGE_PLAYOUTS;
+  const chunkSize = options.chunkSize ?? DAILY_CHALLENGE_CHUNK_SIZE;
+  const scores: number[] = [];
+  let nextPlayoutIndex = 0;
+
+  return new Promise<number>((resolve) => {
+    const runChunk = () => {
+      const limit = Math.min(playoutCount, nextPlayoutIndex + chunkSize);
+
+      while (nextPlayoutIndex < limit) {
+        scores.push(
+          simulateDailyChallengePlayout(
+            challenge,
+            challenge.seed + nextPlayoutIndex,
+          ),
+        );
+        nextPlayoutIndex += 1;
+      }
+
+      if (nextPlayoutIndex < playoutCount) {
+        setTimeout(runChunk, 0);
+        return;
+      }
+
+      scores.sort((left, right) => left - right);
+      resolve(scores[Math.floor(scores.length / 2)] ?? 0);
+    };
+
+    runChunk();
+  });
+}
+
 export function syncHighScoreOnGameOver(
   state: GameState,
   storage: StorageLike | null = getStorage(),
@@ -590,11 +866,14 @@ export function useSnakeGame() {
   const [replays, setReplays] = useState<ReplayData[]>([]);
   const [latestReplay, setLatestReplay] = useState<ReplayData | null>(null);
   const [obstacleMode, setObstacleMode] = useState<ObstacleDifficulty | null>(null);
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
+  const [isDailyChallengeMode, setIsDailyChallengeMode] = useState(false);
   const [achievementMeta, setAchievementMeta] = useState<AchievementMeta>(
     createInitialAchievementMeta(),
   );
   const achievementsRef = useRef(achievements);
   const achievementMetaRef = useRef(achievementMeta);
+  const dailyChallengeRef = useRef<DailyChallenge | null>(dailyChallenge);
   const gameStartTimeRef = useRef<number>(Date.now());
   const previousIsGameOverRef = useRef(false);
   const seedRef = useRef(createReplaySeed());
@@ -602,6 +881,10 @@ export function useSnakeGame() {
   const currentTickRef = useRef(0);
   const recordedInputsRef = useRef<ReplayInput[]>([]);
   const latestReplayRef = useRef<ReplayData | null>(null);
+
+  useEffect(() => {
+    dailyChallengeRef.current = dailyChallenge;
+  }, [dailyChallenge]);
 
   const initializeGame = useCallback(
     (
@@ -638,6 +921,87 @@ export function useSnakeGame() {
     },
     [initializeGame],
   );
+
+  const loadDailyChallenge = useCallback(async (date: string) => {
+    const storage = getStorage();
+    const existing = readDailyChallengeStore(storage).challenges[date];
+    const baseChallenge = existing ?? saveDailyChallenge(createDailyChallenge(date), storage);
+
+    dailyChallengeRef.current = baseChallenge;
+    setDailyChallenge(baseChallenge);
+
+    if (baseChallenge.targetScore > 0) {
+      return baseChallenge;
+    }
+
+    const targetScore = await calculateDailyChallengeTargetScore(baseChallenge);
+    const nextChallenge = {
+      ...baseChallenge,
+      targetScore,
+    };
+
+    saveDailyChallenge(nextChallenge, storage);
+    dailyChallengeRef.current = nextChallenge;
+    setDailyChallenge(nextChallenge);
+
+    return nextChallenge;
+  }, []);
+
+  const startDailyChallenge = useCallback(
+    (date: string = getTodayDateString()) => {
+      const nextChallenge =
+        dailyChallengeRef.current?.date === date
+          ? dailyChallengeRef.current
+          : null;
+
+      if (!nextChallenge) {
+        return;
+      }
+
+      const nextObstacleMode = nextChallenge.obstacleMode
+        ? nextChallenge.obstacleDifficulty
+        : null;
+
+      setDifficulty(nextChallenge.difficulty);
+      setObstacleMode(nextObstacleMode);
+      setIsDailyChallengeMode(true);
+      setGameState(
+        initializeGame(
+          nextChallenge.difficulty,
+          nextObstacleMode,
+          nextChallenge.seed,
+        ),
+      );
+      const nextMeta = createInitialAchievementMeta();
+      achievementMetaRef.current = nextMeta;
+      setAchievementMeta(nextMeta);
+      gameStartTimeRef.current = Date.now();
+      setDurationSeconds(0);
+    },
+    [initializeGame],
+  );
+
+  const updateDailyChallenge = useCallback((score: number) => {
+    const currentChallenge = dailyChallengeRef.current;
+
+    if (!currentChallenge) {
+      return null;
+    }
+
+    const nextChallenge = updateStoredDailyChallengeResult(
+      currentChallenge.date,
+      score,
+      getStorage(),
+    );
+
+    if (!nextChallenge) {
+      return null;
+    }
+
+    dailyChallengeRef.current = nextChallenge;
+    setDailyChallenge(nextChallenge);
+    return nextChallenge;
+  }, []);
 
   const applyAchievementUpdate = useCallback(
     (previousState: GameState, nextState: GameState) => {
@@ -687,13 +1051,14 @@ export function useSnakeGame() {
       setAchievementMeta(createInitialAchievementMeta());
       gameStartTimeRef.current = Date.now();
       setDurationSeconds(0);
+      void loadDailyChallenge(getTodayDateString());
     }, 0);
 
     return () => {
       window.clearTimeout(timer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initializeGame]);
+  }, [initializeGame, loadDailyChallenge]);
 
   const resetGame = useCallback(() => {
     setGameState((currentState) => {
@@ -924,5 +1289,9 @@ export function useSnakeGame() {
     resetGame,
     setSkin,
     turnSnake,
+    dailyChallenge,
+    isDailyChallengeMode,
+    startDailyChallenge,
+    updateDailyChallenge,
   };
 }
